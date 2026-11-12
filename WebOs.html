@@ -1,0 +1,2240 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full select-none">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Windows 11 WebOS</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Segoe UI"', 'Inter', 'sans-serif'],
+                        mono: ['"Fira Code"', 'monospace'],
+                    },
+                    colors: {
+                        winAccent: 'var(--win-accent)',
+                        winAccentHover: 'var(--win-accent-hover)',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --win-accent: #0078d4;
+            --win-accent-hover: #106ebe;
+            --win-glass-bg: rgba(20, 25, 35, 0.75);
+            --win-glass-light: rgba(255, 255, 255, 0.75);
+        }
+
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* Windows 11 Glassmorphism & Effects */
+        .win-mica {
+            backdrop-filter: blur(25px) saturate(180%);
+            -webkit-backdrop-filter: blur(25px) saturate(180%);
+        }
+        
+        .win-shadow {
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 15px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(150, 150, 150, 0.3);
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(150, 150, 150, 0.5);
+        }
+
+        /* Animations */
+        @keyframes startMenuOpen {
+            from { opacity: 0; transform: translateY(20px) scale(0.96); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .animate-start-open {
+            animation: startMenuOpen 0.25s cubic-bezier(0.1, 0.9, 0.2, 1) forwards;
+        }
+
+        @keyframes windowOpen {
+            from { opacity: 0; transform: scale(0.95) translateY(10px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        .animate-window-open {
+            animation: windowOpen 0.2s cubic-bezier(0.1, 0.9, 0.2, 1) forwards;
+        }
+
+        /* Selection box styling */
+        #selection-box {
+            position: absolute;
+            background: rgba(0, 120, 212, 0.25);
+            border: 1px solid rgba(0, 120, 212, 0.8);
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .snap-preview {
+            transition: all 0.15s ease-out;
+            border: 2px solid var(--win-accent);
+            background: rgba(0, 120, 212, 0.2);
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 dark" id="app-root">
+
+    <!-- ========================================== -->
+    <!-- BOOT / LOCK / LOGIN SCREEN OVERLAY -->
+    <!-- ========================================== -->
+    <div id="boot-overlay" class="fixed inset-0 z-[99999] bg-black flex flex-col items-center justify-center text-white transition-opacity duration-700">
+        <div id="boot-spinner" class="flex flex-col items-center space-y-6">
+            <div class="w-16 h-16 relative flex items-center justify-center">
+                <!-- Win 11 Logo -->
+                <div class="grid grid-cols-2 gap-1 w-12 h-12">
+                    <div class="bg-sky-500 rounded-sm"></div>
+                    <div class="bg-sky-500 rounded-sm"></div>
+                    <div class="bg-sky-500 rounded-sm"></div>
+                    <div class="bg-sky-500 rounded-sm"></div>
+                </div>
+            </div>
+            <div class="w-8 h-8 border-4 border-sky-500 border-t-transparent rounded-full animate-spin"></div>
+            <p class="text-xs font-medium text-slate-400 tracking-wider">Starting Windows...</p>
+        </div>
+    </div>
+
+    <!-- LOCK SCREEN -->
+    <div id="lock-screen" class="fixed inset-0 z-[9999] bg-cover bg-center transition-all duration-500 flex flex-col justify-between p-12 text-white" style="background-image: url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2560&auto=format&fit=crop');">
+        <!-- Lock Screen Top Clock -->
+        <div class="flex flex-col items-center mt-12 cursor-pointer" onclick="unlockScreen()">
+            <div id="lock-time" class="text-7xl font-light tracking-tight drop-shadow-lg">12:00</div>
+            <div id="lock-date" class="text-xl font-medium mt-2 drop-shadow-md">Thursday, November 5</div>
+        </div>
+
+        <!-- Login Prompt (hidden by default) -->
+        <div id="login-card" class="hidden flex-col items-center self-center bg-slate-900/60 win-mica p-8 rounded-3xl border border-white/10 w-80 text-center shadow-2xl animate-window-open">
+            <div class="w-20 h-20 rounded-full bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center text-3xl font-bold shadow-lg mb-3">
+                <i class="fa-solid fa-user"></i>
+            </div>
+            <h3 class="font-semibold text-lg">Administrator</h3>
+            <p class="text-xs text-slate-300 mb-4">admin@win11.webos</p>
+            <form onsubmit="handleLogin(event)" class="w-full space-y-3">
+                <div class="relative">
+                    <input id="login-password" type="password" placeholder="PIN / Password (press Enter)" class="w-full bg-slate-950/70 border border-white/20 rounded-xl px-4 py-2 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-sky-500 pr-10">
+                    <button type="submit" class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white px-2 py-1">
+                        <i class="fa-solid fa-arrow-right text-xs"></i>
+                    </button>
+                </div>
+                <p class="text-[11px] text-slate-400">Click arrow or press Enter to sign in</p>
+            </form>
+        </div>
+
+        <!-- Bottom Unlock Hint -->
+        <div id="lock-hint" class="text-center text-sm font-medium tracking-wide text-slate-200 animate-pulse cursor-pointer" onclick="showLoginCard()">
+            <i class="fa-solid fa-lock text-xs mr-2"></i>Click or press any key to sign in
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- DESKTOP CONTAINER -->
+    <!-- ========================================== -->
+    <div id="desktop-wallpaper" class="fixed inset-0 bg-cover bg-center transition-all duration-500 flex flex-col justify-between" style="background-image: url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2560&auto=format&fit=crop');">
+        
+        <!-- Desktop Icons Grid -->
+        <div id="desktop-grid" class="flex-1 p-4 grid grid-flow-col auto-cols-[96px] grid-rows-[repeat(auto-fill,96px)] gap-2 z-10 select-none">
+            <!-- Dynamic Desktop Icons loaded via JavaScript -->
+        </div>
+
+        <!-- Snap Layout Ghost Overlay -->
+        <div id="snap-preview-ghost" class="fixed hidden z-40 rounded-xl snap-preview pointer-events-none"></div>
+
+        <!-- Context Menu -->
+        <div id="context-menu" class="fixed hidden z-[9000] w-56 bg-slate-900/90 win-mica border border-white/10 rounded-2xl shadow-2xl text-xs py-1.5 text-slate-200">
+            <!-- Dynamic items generated in JS -->
+        </div>
+
+        <!-- Active Windows Area -->
+        <div id="windows-workspace" class="fixed inset-0 pointer-events-none z-20 pb-12 overflow-hidden"></div>
+
+        <!-- ========================================== -->
+        <!-- START MENU & SEARCH POPUPS -->
+        <!-- ========================================== -->
+        
+        <!-- START MENU -->
+        <div id="start-menu" class="fixed bottom-16 left-1/2 -translate-x-1/2 w-[540px] max-w-[95vw] h-[600px] bg-slate-900/85 dark:bg-slate-900/90 win-mica border border-white/10 rounded-3xl shadow-2xl z-[8000] hidden flex-col p-6 text-white animate-start-open">
+            <!-- Search bar in start -->
+            <div class="relative mb-6">
+                <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+                <input id="start-search-input" oninput="filterStartMenuApps(this.value)" type="text" placeholder="Type here to search apps, settings, and files..." class="w-full bg-slate-950/50 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-sky-500/80">
+            </div>
+
+            <!-- Pinned Section Header -->
+            <div class="flex justify-between items-center mb-3 px-2">
+                <span class="text-xs font-semibold text-slate-200">Pinned</span>
+                <button onclick="showNotification('Start Menu', 'Showing all pinned apps')" class="text-[11px] bg-white/5 hover:bg-white/10 px-2.5 py-1 rounded-lg text-slate-200 transition">All apps &gt;</button>
+            </div>
+
+            <!-- Apps Grid -->
+            <div id="start-apps-grid" class="grid grid-cols-4 gap-3 mb-6 overflow-y-auto max-h-[320px] p-1">
+                <!-- App items populated by JS -->
+            </div>
+
+            <!-- Recommended Section -->
+            <div class="flex justify-between items-center mb-2 px-2 mt-auto">
+                <span class="text-xs font-semibold text-slate-200">Recommended</span>
+                <span class="text-[11px] text-slate-400">More</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2 text-xs text-slate-300 mb-4 px-2">
+                <div onclick="openApp('notepad'); toggleStartMenu()" class="flex items-center space-x-3 p-2.5 rounded-xl hover:bg-white/10 cursor-pointer transition border border-white/5">
+                    <i class="fa-solid fa-file-lines text-sky-400 text-lg"></i>
+                    <div>
+                        <p class="font-medium text-slate-200">Project_Notes.txt</p>
+                        <p class="text-[10px] text-slate-400">Recently opened</p>
+                    </div>
+                </div>
+                <div onclick="openApp('explorer'); toggleStartMenu()" class="flex items-center space-x-3 p-2.5 rounded-xl hover:bg-white/10 cursor-pointer transition border border-white/5">
+                    <i class="fa-solid fa-folder text-amber-400 text-lg"></i>
+                    <div>
+                        <p class="font-medium text-slate-200">Downloads</p>
+                        <p class="text-[10px] text-slate-400">Folder</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- User Footer Bar -->
+            <div class="pt-4 border-t border-white/10 flex justify-between items-center px-2">
+                <div class="flex items-center space-x-3 cursor-pointer hover:bg-white/5 p-1.5 rounded-xl transition">
+                    <div class="w-8 h-8 rounded-full bg-sky-600 flex items-center justify-center font-bold text-xs">A</div>
+                    <span class="text-xs font-medium">Administrator</span>
+                </div>
+                <div class="relative">
+                    <button onclick="togglePowerMenu()" class="w-9 h-9 rounded-xl hover:bg-white/10 flex items-center justify-center text-slate-300 transition">
+                        <i class="fa-solid fa-power-off text-sm"></i>
+                    </button>
+                    <!-- Power Popup -->
+                    <div id="power-menu" class="hidden absolute bottom-12 right-0 w-36 bg-slate-800 border border-white/10 rounded-xl shadow-2xl py-1 text-xs z-50">
+                        <button onclick="lockSystem()" class="w-full text-left px-3 py-2 hover:bg-white/10 flex items-center space-x-2"><i class="fa-solid fa-lock text-slate-400"></i><span>Lock</span></button>
+                        <button onclick="rebootSystem()" class="w-full text-left px-3 py-2 hover:bg-white/10 flex items-center space-x-2"><i class="fa-solid fa-rotate-right text-amber-400"></i><span>Restart</span></button>
+                        <button onclick="shutdownSystem()" class="w-full text-left px-3 py-2 hover:bg-rose-500/20 text-rose-400 flex items-center space-x-2"><i class="fa-solid fa-power-off"></i><span>Shut Down</span></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- QUICK SETTINGS & NOTIFICATION CENTER PANEL -->
+        <div id="quick-settings-panel" class="fixed bottom-16 right-3 w-80 bg-slate-900/90 win-mica border border-white/10 rounded-3xl shadow-2xl z-[8000] hidden flex-col p-4 text-white animate-start-open">
+            <div class="grid grid-cols-3 gap-3 mb-4">
+                <button onclick="toggleSettingTile(this, 'wifi')" class="tile-btn flex flex-col items-center justify-center p-3 rounded-2xl bg-sky-600 text-white transition">
+                    <i class="fa-solid fa-wifi text-base mb-1"></i>
+                    <span class="text-[11px] font-medium">Wi-Fi</span>
+                </button>
+                <button onclick="toggleSettingTile(this, 'bluetooth')" class="tile-btn flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition">
+                    <i class="fa-solid fa-bluetooth text-base mb-1"></i>
+                    <span class="text-[11px] font-medium">Bluetooth</span>
+                </button>
+                <button onclick="toggleDarkMode()" class="tile-btn flex flex-col items-center justify-center p-3 rounded-2xl bg-sky-600 text-white transition">
+                    <i class="fa-solid fa-moon text-base mb-1"></i>
+                    <span class="text-[11px] font-medium">Dark Mode</span>
+                </button>
+                <button onclick="toggleSettingTile(this, 'dnd')" class="tile-btn flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition">
+                    <i class="fa-solid fa-bell-slash text-base mb-1"></i>
+                    <span class="text-[11px] font-medium">Focus</span>
+                </button>
+                <button onclick="toggleSettingTile(this, 'nightlight')" class="tile-btn flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition">
+                    <i class="fa-solid fa-eye text-base mb-1"></i>
+                    <span class="text-[11px] font-medium">Night Light</span>
+                </button>
+                <button onclick="openApp('settings'); toggleQuickSettings();" class="tile-btn flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition">
+                    <i class="fa-solid fa-gear text-base mb-1"></i>
+                    <span class="text-[11px] font-medium">Settings</span>
+                </button>
+            </div>
+
+            <!-- Volume Slider -->
+            <div class="space-y-3 pt-2 border-t border-white/10">
+                <div class="flex items-center space-x-3">
+                    <i class="fa-solid fa-volume-high text-slate-400 text-sm"></i>
+                    <input id="volume-range" type="range" min="0" max="100" value="75" class="w-full accent-sky-500 h-1.5 bg-slate-700 rounded-lg cursor-pointer" oninput="updateVolume(this.value)">
+                </div>
+                <div class="flex items-center space-x-3">
+                    <i class="fa-solid fa-sun text-slate-400 text-sm"></i>
+                    <input type="range" min="20" max="100" value="100" class="w-full accent-sky-500 h-1.5 bg-slate-700 rounded-lg cursor-pointer" oninput="document.getElementById('app-root').style.filter = `brightness(${this.value}%)`">
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- WINDOWS 11 CENTERED TASKBAR -->
+        <!-- ========================================== -->
+        <div id="taskbar" class="fixed bottom-0 left-0 right-0 h-12 bg-slate-950/80 win-mica border-t border-white/10 z-[7000] flex items-center justify-between px-3 select-none">
+            <!-- Left Empty Space / Widgets -->
+            <div class="w-32 flex items-center space-x-2">
+                <button class="flex items-center space-x-2 px-2.5 py-1 rounded-xl hover:bg-white/10 transition text-slate-300 text-xs">
+                    <i class="fa-solid fa-cloud-sun text-amber-400 text-sm"></i>
+                    <span class="hidden sm:inline font-medium">72°F Sunny</span>
+                </button>
+            </div>
+
+            <!-- Center Taskbar Icons -->
+            <div id="taskbar-center" class="flex items-center space-x-1.5 bg-slate-900/40 px-2 py-1 rounded-2xl border border-white/5 shadow-inner">
+                <!-- Windows Start Icon -->
+                <button onclick="toggleStartMenu()" id="start-btn" class="w-9 h-9 rounded-xl hover:bg-white/10 flex items-center justify-center transition active:scale-90">
+                    <div class="grid grid-cols-2 gap-0.5 w-4 h-4">
+                        <div class="bg-sky-400 rounded-[1px]"></div>
+                        <div class="bg-sky-400 rounded-[1px]"></div>
+                        <div class="bg-sky-400 rounded-[1px]"></div>
+                        <div class="bg-sky-400 rounded-[1px]"></div>
+                    </div>
+                </button>
+
+                <!-- Search Icon -->
+                <button onclick="toggleStartMenu(); setTimeout(()=>document.getElementById('start-search-input').focus(), 50);" class="w-9 h-9 rounded-xl hover:bg-white/10 flex items-center justify-center text-slate-300 transition active:scale-90">
+                    <i class="fa-solid fa-magnifying-glass text-sm"></i>
+                </button>
+
+                <div class="w-[1px] h-5 bg-white/10 mx-1"></div>
+
+                <!-- Dynamic Pinned/Running App Taskbar Icons populated in JS -->
+                <div id="taskbar-pinned-apps" class="flex items-center space-x-1"></div>
+            </div>
+
+            <!-- Right System Tray -->
+            <div class="w-44 flex items-center justify-end space-x-1">
+                <button onclick="toggleQuickSettings()" class="flex items-center space-x-2 px-2 py-1 rounded-xl hover:bg-white/10 text-slate-300 text-xs transition">
+                    <i class="fa-solid fa-wifi"></i>
+                    <i id="tray-volume-icon" class="fa-solid fa-volume-high"></i>
+                    <i class="fa-solid fa-battery-three-quarters text-emerald-400"></i>
+                </button>
+                <div onclick="toggleQuickSettings()" class="flex flex-col items-end px-2 py-1 rounded-xl hover:bg-white/10 text-slate-200 cursor-pointer transition">
+                    <span id="tray-time" class="text-[11px] font-semibold leading-tight">12:00 PM</span>
+                    <span id="tray-date" class="text-[9px] text-slate-400 leading-tight">11/05/2026</span>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Notification Toasts Container -->
+    <div id="notification-area" class="fixed bottom-14 right-4 z-[9990] flex flex-col space-y-2 pointer-events-none"></div>
+
+    <!-- Firebase SDK Imports -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Expose Firebase modules globally for app integration
+        window.firebaseInit = async function() {
+            try {
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'webos-default-app';
+                const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { apiKey: "mock", projectId: "mock" };
+                
+                const app = initializeApp(firebaseConfig);
+                const db = getFirestore(app);
+                const auth = getAuth(app);
+
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                window.db = db;
+                window.auth = auth;
+                window.appId = appId;
+                
+                console.log("Database connected successfully!");
+                showNotification("Cloud Storage", "Connected to cloud database successfully!");
+                initCloudListeners();
+            } catch (err) {
+                console.log("Firebase init fallback:", err);
+            }
+        };
+    </script>
+
+    <!-- JavaScript System Engine -->
+    <script>
+        /* ==========================================================================
+           SYSTEM GLOBAL STATE & DATA
+           ========================================================================== */
+        let state = {
+            isLocked: true,
+            wallpaper: localStorage.getItem('win11_wallpaper') || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2560&auto=format&fit=crop',
+            accentColor: localStorage.getItem('win11_accent') || '#0078d4',
+            volume: 75,
+            activeApps: {},
+            highestZ: 100,
+            activeWindowId: null
+        };
+
+        const APPS_CONFIG = {
+            explorer: { name: 'File Explorer', icon: 'fa-solid fa-folder text-amber-400', width: 'w-[780px]', height: 'h-[500px]' },
+            settings: { name: 'Settings', icon: 'fa-solid fa-gear text-sky-400', width: 'w-[750px]', height: 'h-[520px]' },
+            snake: { name: 'Retro Snake Pro', icon: 'fa-solid fa-gamepad text-emerald-400', width: 'w-[480px]', height: 'h-[540px]' },
+            paint: { name: 'MS Paint Pro', icon: 'fa-solid fa-palette text-pink-400', width: 'w-[850px]', height: 'h-[580px]' },
+            browser: { name: 'Edge Browser', icon: 'fa-solid fa-globe text-cyan-400', width: 'w-[900px]', height: 'h-[600px]' },
+            terminal: { name: 'Terminal', icon: 'fa-solid fa-terminal text-emerald-500', width: 'w-[620px]', height: 'h-[400px]' },
+            calculator: { name: 'Calculator', icon: 'fa-solid fa-calculator text-teal-400', width: 'w-[340px]', height: 'h-[460px]' },
+            notepad: { name: 'Notepad', icon: 'fa-solid fa-file-lines text-sky-300', width: 'w-[560px]', height: 'h-[420px]' },
+            spotify: { name: 'Spotify', icon: 'fa-brands fa-spotify text-emerald-500', width: 'w-[800px]', height: 'h-[520px]' },
+            xbox: { name: 'Xbox', icon: 'fa-brands fa-xbox text-emerald-400', width: 'w-[840px]', height: 'h-[540px]' },
+            weather: { name: 'Weather', icon: 'fa-solid fa-cloud-sun text-amber-400', width: 'w-[600px]', height: 'h-[420px]' },
+            camera: { name: 'Camera', icon: 'fa-solid fa-camera text-sky-300', width: 'w-[640px]', height: 'h-[480px]' },
+            store: { name: 'Microsoft Store', icon: 'fa-solid fa-bag-shopping text-blue-400', width: 'w-[820px]', height: 'h-[540px]' },
+            photos: { name: 'Photos', icon: 'fa-solid fa-image text-purple-400', width: 'w-[780px]', height: 'h-[500px]' },
+            mail: { name: 'Mail', icon: 'fa-solid fa-envelope text-red-400', width: 'w-[780px]', height: 'h-[500px]' },
+            calendar: { name: 'Calendar', icon: 'fa-solid fa-calendar-days text-indigo-400', width: 'w-[720px]', height: 'h-[480px]' },
+            word: { name: 'Word', icon: 'fa-solid fa-file-word text-blue-500', width: 'w-[800px]', height: 'h-[540px]' },
+            excel: { name: 'Excel', icon: 'fa-solid fa-file-excel text-emerald-600', width: 'w-[800px]', height: 'h-[540px]' },
+            powerpoint: { name: 'PowerPoint', icon: 'fa-solid fa-file-powerpoint text-orange-500', width: 'w-[800px]', height: 'h-[540px]' },
+            todos: { name: 'To Do', icon: 'fa-solid fa-check-double text-sky-500', width: 'w-[600px]', height: 'h-[460px]' },
+            discord: { name: 'Discord', icon: 'fa-brands fa-discord text-indigo-400', width: 'w-[860px]', height: 'h-[560px]' },
+            scratch: { name: 'Scratch', icon: 'fa-solid fa-cat text-orange-400', width: 'w-[960px]', height: 'h-[620px]' }
+        };
+
+        /* ==========================================================================
+           BOOT & UNLOCK LIFECYCLE
+           ========================================================================== */
+        window.addEventListener('load', () => {
+            // Simulated System Boot
+            setTimeout(() => {
+                const bootOverlay = document.getElementById('boot-overlay');
+                bootOverlay.style.opacity = '0';
+                setTimeout(() => bootOverlay.style.display = 'none', 700);
+            }, 1200);
+
+            if (window.firebaseInit) window.firebaseInit();
+
+            updateClocks();
+            setInterval(updateClocks, 1000);
+            renderDesktopIcons();
+            renderStartApps();
+            updateTaskbarApps();
+            setupContextMenu();
+        });
+
+        function updateClocks() {
+            const now = new Date();
+            const hours = now.getHours();
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            const displayHours = hours % 12 || 12;
+
+            const timeStr = `${displayHours}:${minutes} ${ampm}`;
+            const dateStr = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+            const trayDateStr = `${now.getMonth()+1}/${now.getDate()}/${now.getFullYear()}`;
+
+            document.getElementById('lock-time').innerText = `${displayHours}:${minutes}`;
+            document.getElementById('lock-date').innerText = dateStr;
+            document.getElementById('tray-time').innerText = timeStr;
+            document.getElementById('tray-date').innerText = trayDateStr;
+        }
+
+        function showLoginCard() {
+            document.getElementById('lock-hint').classList.add('hidden');
+            const card = document.getElementById('login-card');
+            card.classList.remove('hidden');
+            card.classList.add('flex');
+            document.getElementById('login-password').focus();
+        }
+
+        function unlockScreen() {
+            showLoginCard();
+        }
+
+        function handleLogin(e) {
+            e.preventDefault();
+            const lockScreen = document.getElementById('lock-screen');
+            lockScreen.style.transform = 'translateY(-100%)';
+            setTimeout(() => lockScreen.classList.add('hidden'), 500);
+            state.isLocked = false;
+            showNotification('Welcome back!', 'Signed in as Administrator');
+        }
+
+        function lockSystem() {
+            const lockScreen = document.getElementById('lock-screen');
+            lockScreen.classList.remove('hidden');
+            setTimeout(() => lockScreen.style.transform = 'translateY(0)', 10);
+            state.isLocked = true;
+            toggleStartMenu();
+        }
+
+        function shutdownSystem() {
+            document.body.innerHTML = `
+                <div class="h-screen w-screen bg-black flex flex-col items-center justify-center text-white">
+                    <p class="text-xl font-semibold mb-2">Shutting down Windows...</p>
+                    <div class="w-8 h-8 border-4 border-sky-500 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+            `;
+        }
+
+        function rebootSystem() {
+            location.reload();
+        }
+
+        /* ==========================================================================
+           DESKTOP & START MENU
+           ========================================================================== */
+        const DESKTOP_ITEMS = [
+            { id: 'explorer', name: 'File Explorer', icon: 'fa-solid fa-folder text-amber-400' },
+            { id: 'browser', name: 'Edge Browser', icon: 'fa-solid fa-globe text-cyan-400' },
+            { id: 'snake', name: 'Retro Snake', icon: 'fa-solid fa-gamepad text-emerald-400' },
+            { id: 'paint', name: 'MS Paint', icon: 'fa-solid fa-palette text-pink-400' },
+            { id: 'notepad', name: 'Notepad', icon: 'fa-solid fa-file-lines text-sky-300' },
+            { id: 'calculator', name: 'Calculator', icon: 'fa-solid fa-calculator text-teal-400' },
+            { id: 'terminal', name: 'Terminal', icon: 'fa-solid fa-terminal text-emerald-500' },
+            { id: 'settings', name: 'Settings', icon: 'fa-solid fa-gear text-sky-400' },
+            { id: 'store', name: 'Microsoft Store', icon: 'fa-solid fa-bag-shopping text-blue-400' },
+            { id: 'photos', name: 'Photos', icon: 'fa-solid fa-image text-purple-400' },
+            { id: 'mail', name: 'Mail', icon: 'fa-solid fa-envelope text-red-400' },
+            { id: 'calendar', name: 'Calendar', icon: 'fa-solid fa-calendar-days text-indigo-400' }
+        ];
+
+        const ALL_START_APPS = [
+            ...DESKTOP_ITEMS,
+            { id: 'spotify', name: 'Spotify', icon: 'fa-brands fa-spotify text-emerald-500' },
+            { id: 'xbox', name: 'Xbox', icon: 'fa-brands fa-xbox text-emerald-400' },
+            { id: 'weather', name: 'Weather', icon: 'fa-solid fa-cloud-sun text-amber-400' },
+            { id: 'camera', name: 'Camera', icon: 'fa-solid fa-camera text-sky-300' },
+            { id: 'word', name: 'Word', icon: 'fa-solid fa-file-word text-blue-500' },
+            { id: 'excel', name: 'Excel', icon: 'fa-solid fa-file-excel text-emerald-600' },
+            { id: 'powerpoint', name: 'PowerPoint', icon: 'fa-solid fa-file-powerpoint text-orange-500' },
+            { id: 'todos', name: 'To Do', icon: 'fa-solid fa-check-double text-sky-500' },
+            { id: 'discord', name: 'Discord', icon: 'fa-brands fa-discord text-indigo-400' },
+            { id: 'scratch', name: 'Scratch', icon: 'fa-solid fa-cat text-orange-400' }
+        ];
+
+        function renderDesktopIcons() {
+            const grid = document.getElementById('desktop-grid');
+            grid.innerHTML = '';
+            DESKTOP_ITEMS.forEach(item => {
+                const el = document.createElement('div');
+                el.className = 'group flex flex-col items-center justify-center p-2 rounded-xl hover:bg-white/10 border border-transparent hover:border-white/10 cursor-pointer text-center text-white transition';
+                el.ondblclick = () => openApp(item.id);
+                el.onclick = (e) => {
+                    e.stopPropagation();
+                    document.querySelectorAll('#desktop-grid > div').forEach(d => d.classList.remove('bg-white/20', 'border-white/20'));
+                    el.classList.add('bg-white/20', 'border-white/20');
+                };
+                el.innerHTML = `
+                    <div class="w-12 h-12 flex items-center justify-center text-2xl drop-shadow-md group-hover:scale-110 transition">
+                        <i class="${item.icon}"></i>
+                    </div>
+                    <span class="text-[11px] font-medium leading-tight mt-1 drop-shadow line-clamp-2">${item.name}</span>
+                `;
+                grid.appendChild(el);
+            });
+        }
+
+        function renderStartApps() {
+            const grid = document.getElementById('start-apps-grid');
+            grid.innerHTML = '';
+            ALL_START_APPS.forEach(item => {
+                const el = document.createElement('div');
+                el.className = 'start-app-item flex flex-col items-center justify-center p-3 rounded-2xl hover:bg-white/10 cursor-pointer transition text-center border border-transparent hover:border-white/10';
+                el.onclick = () => { 
+                    openApp(item.id); 
+                    toggleStartMenu(); 
+                };
+                el.innerHTML = `
+                    <div class="w-10 h-10 flex items-center justify-center text-2xl mb-1.5 drop-shadow">
+                        <i class="${item.icon}"></i>
+                    </div>
+                    <span class="text-[11px] text-slate-200 font-medium line-clamp-1">${item.name}</span>
+                `;
+                grid.appendChild(el);
+            });
+        }
+
+        function filterStartMenuApps(query) {
+            const items = document.querySelectorAll('.start-app-item');
+            const q = query.toLowerCase();
+            items.forEach(el => {
+                const name = el.querySelector('span').innerText.toLowerCase();
+                el.style.display = name.includes(q) ? 'flex' : 'none';
+            });
+        }
+
+        function toggleStartMenu() {
+            const startMenu = document.getElementById('start-menu');
+            const quickPanel = document.getElementById('quick-settings-panel');
+            quickPanel.classList.add('hidden');
+            if (startMenu.classList.contains('hidden')) {
+                startMenu.classList.remove('hidden');
+                startMenu.classList.add('flex');
+                document.getElementById('start-search-input').focus();
+            } else {
+                startMenu.classList.add('hidden');
+                startMenu.classList.remove('flex');
+            }
+        }
+
+        function toggleQuickSettings() {
+            const startMenu = document.getElementById('start-menu');
+            const quickPanel = document.getElementById('quick-settings-panel');
+            startMenu.classList.add('hidden');
+            quickPanel.classList.toggle('hidden');
+            quickPanel.classList.toggle('flex');
+        }
+
+        function togglePowerMenu() {
+            const menu = document.getElementById('power-menu');
+            menu.classList.toggle('hidden');
+        }
+
+        function toggleSettingTile(btn, type) {
+            btn.classList.toggle('bg-sky-600');
+            btn.classList.toggle('bg-slate-800');
+            btn.classList.toggle('text-white');
+            btn.classList.toggle('text-slate-300');
+            showNotification('Settings Changed', `Toggled ${type}`);
+        }
+
+        function toggleDarkMode() {
+            const root = document.getElementById('app-root');
+            root.classList.toggle('dark');
+            showNotification('Theme Changed', root.classList.contains('dark') ? 'Switched to Dark Mode' : 'Switched to Light Mode');
+        }
+
+        function updateVolume(val) {
+            state.volume = val;
+            const icon = document.getElementById('tray-volume-icon');
+            if (val == 0) icon.className = 'fa-solid fa-volume-xmark text-rose-400';
+            else if (val < 50) icon.className = 'fa-solid fa-volume-low';
+            else icon.className = 'fa-solid fa-volume-high';
+        }
+
+        /* ==========================================================================
+           CONTEXT MENU MANAGEMENT
+           ========================================================================== */
+        function setupContextMenu() {
+            const menu = document.getElementById('context-menu');
+            
+            document.addEventListener('contextmenu', (e) => {
+                if (state.isLocked) return;
+                e.preventDefault();
+                menu.style.left = `${Math.min(e.clientX, window.innerWidth - 230)}px`;
+                menu.style.top = `${Math.min(e.clientY, window.innerHeight - 250)}px`;
+                
+                menu.innerHTML = `
+                    <div onclick="openApp('explorer'); hideContextMenu();" class="px-3 py-2 hover:bg-white/10 cursor-pointer flex items-center space-x-2"><i class="fa-solid fa-folder text-amber-400"></i><span>Open Explorer</span></div>
+                    <div onclick="openApp('terminal'); hideContextMenu();" class="px-3 py-2 hover:bg-white/10 cursor-pointer flex items-center space-x-2"><i class="fa-solid fa-terminal text-emerald-400"></i><span>Open Terminal Here</span></div>
+                    <div class="h-[1px] bg-white/10 my-1"></div>
+                    <div onclick="openApp('settings'); hideContextMenu();" class="px-3 py-2 hover:bg-white/10 cursor-pointer flex items-center space-x-2"><i class="fa-solid fa-paintbrush text-sky-400"></i><span>Personalize Wallpaper</span></div>
+                    <div onclick="location.reload();" class="px-3 py-2 hover:bg-white/10 cursor-pointer flex items-center space-x-2"><i class="fa-solid fa-rotate-right text-slate-400"></i><span>Refresh Desktop</span></div>
+                `;
+                menu.classList.remove('hidden');
+            });
+
+            document.addEventListener('click', () => {
+                hideContextMenu();
+                const startMenu = document.getElementById('start-menu');
+                const quickPanel = document.getElementById('quick-settings-panel');
+                // Hide popups when clicking desktop
+            });
+        }
+
+        function hideContextMenu() {
+            document.getElementById('context-menu').classList.add('hidden');
+        }
+
+        /* ==========================================================================
+           WINDOW MANAGEMENT ENGINE
+           ========================================================================== */
+        function openApp(appId) {
+            if (state.activeApps[appId]) {
+                if (state.activeApps[appId].minimized) {
+                    restoreWindow(appId);
+                } else {
+                    bringToFront(appId);
+                }
+                return;
+            }
+
+            const config = APPS_CONFIG[appId];
+            if (!config) return;
+
+            state.activeApps[appId] = { minimized: false, maximized: false };
+
+            const win = document.createElement('div');
+            win.id = `win-${appId}`;
+            win.className = `absolute top-16 left-20 ${config.width} ${config.height} bg-slate-900/90 win-mica border border-white/10 rounded-2xl win-shadow flex flex-col pointer-events-auto overflow-hidden animate-window-open`;
+            win.style.zIndex = ++state.highestZ;
+
+            win.innerHTML = `
+                <!-- Window Titlebar Header -->
+                <div onmousedown="startWindowDrag(event, '${appId}')" class="h-10 bg-slate-950/60 border-b border-white/10 flex items-center justify-between px-3.5 select-none cursor-move">
+                    <div class="flex items-center space-x-2.5 text-xs font-semibold text-slate-200">
+                        <i class="${config.icon} text-sm"></i>
+                        <span>${config.name}</span>
+                    </div>
+                    <!-- Win 11 Styled Window Control Buttons -->
+                    <div class="flex items-center space-x-2" onmousedown="event.stopPropagation()">
+                        <button onclick="minimizeWindow('${appId}')" title="Minimize" class="w-6 h-6 rounded-full bg-amber-500/80 hover:bg-amber-400 active:scale-90 flex items-center justify-center text-[10px] text-slate-950 font-bold transition shadow">
+                            <i class="fa-solid fa-minus"></i>
+                        </button>
+                        <button onclick="toggleMaximizeWindow('${appId}')" title="Maximize / Restore" class="w-6 h-6 rounded-full bg-emerald-500/80 hover:bg-emerald-400 active:scale-90 flex items-center justify-center text-[10px] text-slate-950 font-bold transition shadow relative group">
+                            <i class="fa-solid fa-expand"></i>
+                        </button>
+                        <button onclick="closeApp('${appId}')" title="Close" class="w-6 h-6 rounded-full bg-rose-500/80 hover:bg-rose-400 active:scale-90 flex items-center justify-center text-[11px] text-slate-950 font-bold transition shadow">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- App Body Content -->
+                <div class="flex-1 overflow-hidden relative bg-slate-950/40">
+                    ${getAppContent(appId)}
+                </div>
+            `;
+
+            win.onmousedown = () => bringToFront(appId);
+            document.getElementById('windows-workspace').appendChild(win);
+            state.activeWindowId = appId;
+            updateTaskbarApps();
+
+            // Special initializers for apps needing runtime setup
+            if (appId === 'snake') setTimeout(initSnakeApp, 100);
+            if (appId === 'paint') setTimeout(initPaintApp, 100);
+        }
+
+        function bringToFront(appId) {
+            const win = document.getElementById(`win-${appId}`);
+            if (win) {
+                win.style.zIndex = ++state.highestZ;
+                state.activeWindowId = appId;
+                updateTaskbarApps();
+            }
+        }
+
+        function closeApp(appId) {
+            const win = document.getElementById(`win-${appId}`);
+            if (win) win.remove();
+            delete state.activeApps[appId];
+            updateTaskbarApps();
+        }
+
+        function minimizeWindow(appId) {
+            const win = document.getElementById(`win-${appId}`);
+            if (win) {
+                win.style.transform = 'scale(0.8) translateY(120px)';
+                win.style.opacity = '0';
+                setTimeout(() => win.style.display = 'none', 150);
+                state.activeApps[appId].minimized = true;
+                updateTaskbarApps();
+            }
+        }
+
+        function restoreWindow(appId) {
+            const win = document.getElementById(`win-${appId}`);
+            if (win) {
+                win.style.display = 'flex';
+                setTimeout(() => {
+                    win.style.transform = 'scale(1) translateY(0)';
+                    win.style.opacity = '1';
+                }, 10);
+                state.activeApps[appId].minimized = false;
+                bringToFront(appId);
+            }
+        }
+
+        function toggleMaximizeWindow(appId) {
+            const win = document.getElementById(`win-${appId}`);
+            const appState = state.activeApps[appId];
+            if (!win) return;
+
+            if (!appState.maximized) {
+                win.dataset.prevStyle = win.style.cssText;
+                win.style.top = '0px';
+                win.style.left = '0px';
+                win.style.width = '100vw';
+                win.style.height = 'calc(100vh - 48px)';
+                win.style.borderRadius = '0px';
+                appState.maximized = true;
+            } else {
+                win.style.cssText = win.dataset.prevStyle;
+                appState.maximized = false;
+            }
+            bringToFront(appId);
+        }
+
+        function updateTaskbarApps() {
+            const container = document.getElementById('taskbar-pinned-apps');
+            container.innerHTML = '';
+
+            DESKTOP_ITEMS.forEach(app => {
+                const isRunning = !!state.activeApps[app.id];
+                const isActive = state.activeWindowId === app.id && isRunning && !state.activeApps[app.id].minimized;
+                
+                const btn = document.createElement('button');
+                btn.className = `relative w-9 h-9 rounded-xl flex items-center justify-center transition active:scale-90 ${isActive ? 'bg-white/20' : 'hover:bg-white/10'}`;
+                btn.onclick = () => {
+                    if (isRunning) {
+                        if (state.activeApps[app.id].minimized) restoreWindow(app.id);
+                        else if (isActive) minimizeWindow(app.id);
+                        else bringToFront(app.id);
+                    } else {
+                        openApp(app.id);
+                    }
+                };
+                btn.innerHTML = `
+                    <i class="${app.icon} text-base"></i>
+                    ${isRunning ? `<div class="absolute bottom-1 w-1.5 h-1.5 rounded-full ${isActive ? 'bg-sky-400 w-3' : 'bg-slate-400'} transition-all"></div>` : ''}
+                `;
+                container.appendChild(btn);
+            });
+        }
+
+        /* Window Dragging Engine */
+        let windowDragState = { win: null, startX: 0, startY: 0, initLeft: 0, initTop: 0 };
+
+        function startWindowDrag(e, appId) {
+            if (state.activeApps[appId].maximized) return;
+            const win = document.getElementById(`win-${appId}`);
+            windowDragState = {
+                win,
+                startX: e.clientX,
+                startY: e.clientY,
+                initLeft: win.offsetLeft,
+                initTop: win.offsetTop
+            };
+            bringToFront(appId);
+            document.addEventListener('mousemove', onWindowDrag);
+            document.addEventListener('mouseup', stopWindowDrag);
+        }
+
+        function onWindowDrag(e) {
+            if (!windowDragState.win) return;
+            const dx = e.clientX - windowDragState.startX;
+            const dy = e.clientY - windowDragState.startY;
+            windowDragState.win.style.left = `${windowDragState.initLeft + dx}px`;
+            windowDragState.win.style.top = `${windowDragState.initTop + dy}px`;
+        }
+
+        function stopWindowDrag() {
+            windowDragState.win = null;
+            document.removeEventListener('mousemove', onWindowDrag);
+            document.removeEventListener('mouseup', stopWindowDrag);
+        }
+
+        /* ==========================================================================
+           RICH BUILT-IN APPLICATIONS GENERATOR
+           ========================================================================== */
+        function getAppContent(appId) {
+            switch(appId) {
+                case 'explorer':
+                    return `
+                        <div class="flex h-full text-white text-xs select-none">
+                            <div class="w-44 bg-slate-900/60 p-3 border-r border-white/5 space-y-3">
+                                <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Quick Access</div>
+                                <div class="space-y-1">
+                                    <div class="flex items-center space-x-2 p-1.5 rounded-lg hover:bg-white/10 cursor-pointer bg-white/5"><i class="fa-solid fa-desktop text-sky-400"></i><span>Desktop</span></div>
+                                    <div class="flex items-center space-x-2 p-1.5 rounded-lg hover:bg-white/10 cursor-pointer"><i class="fa-solid fa-download text-emerald-400"></i><span>Downloads</span></div>
+                                    <div class="flex items-center space-x-2 p-1.5 rounded-lg hover:bg-white/10 cursor-pointer"><i class="fa-solid fa-file text-amber-400"></i><span>Documents</span></div>
+                                    <div class="flex items-center space-x-2 p-1.5 rounded-lg hover:bg-white/10 cursor-pointer"><i class="fa-solid fa-image text-purple-400"></i><span>Pictures</span></div>
+                                </div>
+                            </div>
+                            <div class="flex-1 flex flex-col">
+                                <div class="h-9 bg-slate-900/40 border-b border-white/5 flex items-center px-3 space-x-2">
+                                    <i class="fa-solid fa-arrow-left text-slate-500"></i>
+                                    <i class="fa-solid fa-arrow-right text-slate-500"></i>
+                                    <div class="flex-1 bg-slate-950/50 border border-white/10 rounded-lg px-2 py-0.5 text-slate-300">This PC &gt; Documents</div>
+                                </div>
+                                <div class="p-4 grid grid-cols-4 gap-4" id="explorer-files-grid">
+                                    <div ondblclick="openApp('notepad')" class="flex flex-col items-center p-3 rounded-xl hover:bg-white/5 border border-transparent hover:border-white/10 cursor-pointer">
+                                        <i class="fa-solid fa-file-lines text-sky-300 text-4xl mb-1"></i>
+                                        <span>Project_Notes.txt</span>
+                                    </div>
+                                    <div ondblclick="openApp('scratch')" class="flex flex-col items-center p-3 rounded-xl hover:bg-white/5 border border-transparent hover:border-white/10 cursor-pointer">
+                                        <i class="fa-solid fa-cat text-orange-400 text-4xl mb-1"></i>
+                                        <span>My_Scratch_Project.scratch</span>
+                                    </div>
+                                    <div class="flex flex-col items-center p-3 rounded-xl hover:bg-white/5 border border-transparent hover:border-white/10 cursor-pointer">
+                                        <i class="fa-solid fa-folder text-amber-400 text-4xl mb-1"></i>
+                                        <span>Backups</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                case 'settings':
+                    return `
+                        <div class="flex h-full text-white text-xs">
+                            <div class="w-56 bg-slate-900/80 p-3 border-r border-white/5 space-y-1 select-none overflow-y-auto">
+                                <div class="px-3 py-2 flex items-center space-x-3 mb-2 bg-white/5 rounded-xl">
+                                    <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center font-bold text-xs">A</div>
+                                    <div>
+                                        <p class="font-semibold text-slate-200">Administrator</p>
+                                        <p class="text-[10px] text-slate-400">Local Account</p>
+                                    </div>
+                                </div>
+                                <div id="settings-tab-system" onclick="switchSettingsTab('system')" class="settings-tab p-2.5 rounded-xl bg-sky-600 font-medium flex items-center space-x-3 cursor-pointer transition shadow-sm"><i class="fa-solid fa-laptop text-base w-5 text-center"></i><span>System</span></div>
+                                <div id="settings-tab-bluetooth" onclick="switchSettingsTab('bluetooth')" class="settings-tab p-2.5 rounded-xl hover:bg-white/5 font-medium flex items-center space-x-3 text-slate-300 cursor-pointer transition"><i class="fa-brands fa-bluetooth text-base w-5 text-center"></i><span>Bluetooth & devices</span></div>
+                                <div id="settings-tab-network" onclick="switchSettingsTab('network')" class="settings-tab p-2.5 rounded-xl hover:bg-white/5 font-medium flex items-center space-x-3 text-slate-300 cursor-pointer transition"><i class="fa-solid fa-wifi text-base w-5 text-center"></i><span>Network & internet</span></div>
+                                <div id="settings-tab-personalization" onclick="switchSettingsTab('personalization')" class="settings-tab p-2.5 rounded-xl hover:bg-white/5 font-medium flex items-center space-x-3 text-slate-300 cursor-pointer transition"><i class="fa-solid fa-paintbrush text-base w-5 text-center"></i><span>Personalization</span></div>
+                                <div id="settings-tab-accounts" onclick="switchSettingsTab('accounts')" class="settings-tab p-2.5 rounded-xl hover:bg-white/5 font-medium flex items-center space-x-3 text-slate-300 cursor-pointer transition"><i class="fa-solid fa-user-shield text-base w-5 text-center"></i><span>Accounts</span></div>
+                                <div id="settings-tab-windowsupdate" onclick="switchSettingsTab('windowsupdate')" class="settings-tab p-2.5 rounded-xl hover:bg-white/5 font-medium flex items-center space-x-3 text-slate-300 cursor-pointer transition"><i class="fa-solid fa-arrows-rotate text-base w-5 text-center"></i><span>Windows Update</span></div>
+                            </div>
+                            
+                            <!-- System Tab Content (Default) -->
+                            <div id="settings-content-system" class="settings-pane flex-1 p-6 overflow-y-auto space-y-6">
+                                <div>
+                                    <h3 class="font-bold text-base mb-4 text-slate-100">System</h3>
+                                    <div class="bg-slate-900/60 p-5 rounded-2xl border border-white/5 space-y-4">
+                                        <div class="flex items-center space-x-4">
+                                            <div class="w-14 h-14 rounded-2xl bg-sky-500/20 text-sky-400 flex items-center justify-center text-2xl"><i class="fa-solid fa-laptop"></i></div>
+                                            <div>
+                                                <h4 class="font-bold text-sm">WIN11-WEBOS-PC</h4>
+                                                <p class="text-[11px] text-slate-400">Virtual Desktop Workstation</p>
+                                                <button onclick="showNotification('Rename', 'Device renamed successfully')" class="text-sky-400 hover:underline mt-1 font-medium">Rename device</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <h3 class="font-bold text-sm mb-3">Specifications</h3>
+                                    <div class="bg-slate-900/60 p-5 rounded-2xl border border-white/5 space-y-3 text-slate-300">
+                                        <div class="flex justify-between py-1.5 border-b border-white/5"><span class="text-slate-400">Processor</span><span class="font-medium text-white">Virtual WebOS CPU @ 3.40GHz</span></div>
+                                        <div class="flex justify-between py-1.5 border-b border-white/5"><span class="text-slate-400">Installed RAM</span><span class="font-medium text-white">16.0 GB</span></div>
+                                        <div class="flex justify-between py-1.5"><span class="text-slate-400">System type</span><span class="font-medium text-white">64-bit operating system</span></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <h3 class="font-bold text-sm mb-3">Storage</h3>
+                                    <div class="bg-slate-900/60 p-5 rounded-2xl border border-white/5 space-y-3">
+                                        <div class="flex justify-between"><span>Local Disk (C:)</span><span class="text-sky-400 font-medium">142 GB free of 512 GB</span></div>
+                                        <div class="w-full bg-slate-800 h-3 rounded-full overflow-hidden"><div class="bg-sky-500 h-full w-[72%] rounded-full"></div></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Bluetooth & Devices Tab -->
+                            <div id="settings-content-bluetooth" class="settings-pane flex-1 p-6 overflow-y-auto space-y-6 hidden">
+                                <h3 class="font-bold text-base mb-4">Bluetooth & devices</h3>
+                                <div class="bg-slate-900/60 p-5 rounded-2xl border border-white/5 flex items-center justify-between">
+                                    <div class="flex items-center space-x-3">
+                                        <i class="fa-brands fa-bluetooth text-2xl text-sky-400"></i>
+                                        <div>
+                                            <p class="font-medium">Bluetooth</p>
+                                            <p class="text-[10px] text-slate-400">Pair and manage Bluetooth accessories</p>
+                                        </div>
+                                    </div>
+                                    <button onclick="toggleSettingTile(this, 'bluetooth')" class="w-11 h-6 bg-sky-600 rounded-full relative transition p-0.5"><div class="w-5 h-5 bg-white rounded-full transition-transform translate-x-5"></div></button>
+                                </div>
+                                <div class="bg-slate-900/60 p-5 rounded-2xl border border-white/5 space-y-3">
+                                    <p class="font-medium text-slate-300">Connected Devices</p>
+                                    <div class="flex items-center justify-between p-3 rounded-xl bg-white/5">
+                                        <div class="flex items-center space-x-3"><i class="fa-solid fa-headphones text-lg text-emerald-400"></i><span>AirPods Pro Wireless</span></div>
+                                        <span class="text-xs text-emerald-400 font-medium">Connected</span>
+                                    </div>
+                                    <button onclick="showNotification('Bluetooth', 'Searching for nearby devices...')" class="w-full py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 font-medium transition">+ Add device</button>
+                                </div>
+                            </div>
+
+                            <!-- Network & Internet Tab -->
+                            <div id="settings-content-network" class="settings-pane flex-1 p-6 overflow-y-auto space-y-6 hidden">
+                                <h3 class="font-bold text-base mb-4">Network & internet</h3>
+                                <div class="bg-slate-900/60 p-5 rounded-2xl border border-white/5 flex items-center justify-between">
+                                    <div class="flex items-center space-x-3">
+                                        <i class="fa-solid fa-wifi text-2xl text-sky-400"></i>
+                                        <div>
+                                            <p class="font-medium">Wi-Fi</p>
+                                            <p class="text-[10px] text-slate-400">Connected to WebOS-5G-Secure</p>
+                                        </div>
+                                    </div>
+                                    <span class="text-xs text-emerald-400 font-medium px-3 py-1 bg-emerald-500/10 rounded-full">Connected</span>
+                                </div>
+                                <div class="bg-slate-900/60 p-5 rounded-2xl border border-white/5 space-y-2">
+                                    <p class="font-medium text-slate-300">Network Properties</p>
+                                    <div class="flex justify-between text-slate-400 py-1"><span>IPv4 address</span><span class="text-white font-mono">192.168.1.145</span></div>
+                                    <div class="flex justify-between text-slate-400 py-1"><span>Link speed</span><span class="text-white font-mono">1200 / 1200 (Mbps)</span></div>
+                                </div>
+                            </div>
+
+                            <!-- Personalization Tab Content -->
+                            <div id="settings-content-personalization" class="settings-pane flex-1 p-6 overflow-y-auto space-y-6 hidden">
+                                <div>
+                                    <h3 class="font-bold text-base mb-4">Personalization</h3>
+                                    <div class="space-y-4">
+                                        <div>
+                                            <h4 class="font-semibold text-sm mb-3">Choose your desktop background</h4>
+                                            <div class="grid grid-cols-3 gap-3">
+                                                <button onclick="setWallpaper('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2560&auto=format&fit=crop')" class="h-24 rounded-2xl bg-cover border-2 border-white/20 hover:border-sky-400 transition shadow" style="background-image: url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=600&auto=format&fit=crop')"></button>
+                                                <button onclick="setWallpaper('https://images.unsplash.com/photo-1579546929518-9e396f3cc809?q=80&w=2560&auto=format&fit=crop')" class="h-24 rounded-2xl bg-cover border-2 border-white/20 hover:border-sky-400 transition shadow" style="background-image: url('https://images.unsplash.com/photo-1579546929518-9e396f3cc809?q=80&w=600&auto=format&fit=crop')"></button>
+                                                <button onclick="setWallpaper('https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=2560&auto=format&fit=crop')" class="h-24 rounded-2xl bg-cover border-2 border-white/20 hover:border-sky-400 transition shadow" style="background-image: url('https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=600&auto=format&fit=crop')"></button>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <h4 class="font-semibold text-sm mb-2">Custom Image URL</h4>
+                                            <div class="flex space-x-2">
+                                                <input id="custom-wall-url" type="text" placeholder="https://..." class="flex-1 bg-slate-950 border border-white/10 rounded-xl px-4 py-2 text-xs outline-none text-white">
+                                                <button onclick="setWallpaper(document.getElementById('custom-wall-url').value)" class="bg-sky-600 px-5 py-2 rounded-xl font-semibold hover:bg-sky-500 transition">Apply</button>
+                                            </div>
+                                        </div>
+                                        <div class="pt-4 border-t border-white/10 flex items-center justify-between">
+                                            <div>
+                                                <p class="font-semibold">Dark mode theme</p>
+                                                <p class="text-[10px] text-slate-400">Select default app color mode</p>
+                                            </div>
+                                            <button onclick="toggleDarkMode()" class="bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-xl font-semibold transition">Toggle Theme</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Accounts Tab -->
+                            <div id="settings-content-accounts" class="settings-pane flex-1 p-6 overflow-y-auto space-y-6 hidden">
+                                <h3 class="font-bold text-base mb-4">Accounts</h3>
+                                <div class="bg-slate-900/60 p-6 rounded-2xl border border-white/5 flex items-center space-x-4">
+                                    <div class="w-16 h-16 rounded-full bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center font-bold text-2xl shadow-lg">A</div>
+                                    <div>
+                                        <h4 class="font-bold text-base">Administrator</h4>
+                                        <p class="text-xs text-slate-400">admin@win11.webos</p>
+                                        <span class="inline-block mt-2 text-[10px] bg-emerald-500/20 text-emerald-400 px-2.5 py-0.5 rounded-full font-medium">Microsoft Account Connected</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Windows Update Tab -->
+                            <div id="settings-content-windowsupdate" class="settings-pane flex-1 p-6 overflow-y-auto space-y-6 hidden">
+                                <h3 class="font-bold text-base mb-4">Windows Update</h3>
+                                <div class="bg-slate-900/60 p-6 rounded-2xl border border-white/5 space-y-4 text-center">
+                                    <div class="w-14 h-14 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center text-2xl mx-auto"><i class="fa-solid fa-check"></i></div>
+                                    <div>
+                                        <h4 class="font-bold text-sm text-slate-200">You're up to date</h4>
+                                        <p class="text-xs text-slate-400 mt-1">Last checked: Today, 7:00 PM</p>
+                                    </div>
+                                    <button onclick="showNotification('Windows Update', 'Checking for latest security patches...')" class="bg-sky-600 hover:bg-sky-500 px-6 py-2.5 rounded-xl font-semibold transition">Check for updates</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                case 'snake':
+                    return `
+                        <div class="flex flex-col h-full bg-slate-950 p-4 items-center justify-center text-white select-none">
+                            <div class="flex justify-between w-full max-w-[360px] mb-2 text-xs font-bold text-slate-300">
+                                <span>Score: <span id="snake-score" class="text-emerald-400">0</span></span>
+                                <span class="text-slate-500">Arrow keys to move</span>
+                            </div>
+                            <canvas id="snake-canvas" width="360" height="360" class="bg-slate-900 rounded-2xl border border-white/10 shadow-lg"></canvas>
+                        </div>
+                    `;
+
+                case 'paint':
+                    return `
+                        <div class="flex flex-col h-full bg-slate-900 text-white select-none">
+                            <!-- Paint Toolbar -->
+                            <div class="h-12 bg-slate-950/80 border-b border-white/10 flex items-center px-3 space-x-2 text-xs">
+                                <div class="flex items-center space-x-1 border-r border-white/10 pr-2">
+                                    <button onclick="setPaintTool('pencil')" id="tool-pencil" title="Pencil" class="paint-tool-btn p-2 rounded-lg bg-sky-600 text-white transition"><i class="fa-solid fa-pencil"></i></button>
+                                    <button onclick="setPaintTool('brush')" id="tool-brush" title="Brush" class="paint-tool-btn p-2 rounded-lg text-slate-300 hover:bg-white/10 transition"><i class="fa-solid fa-paintbrush"></i></button>
+                                    <button onclick="setPaintTool('eraser')" id="tool-eraser" title="Eraser" class="paint-tool-btn p-2 rounded-lg text-slate-300 hover:bg-white/10 transition"><i class="fa-solid fa-eraser"></i></button>
+                                    <button onclick="setPaintTool('bucket')" id="tool-bucket" title="Fill Bucket" class="paint-tool-btn p-2 rounded-lg text-slate-300 hover:bg-white/10 transition"><i class="fa-solid fa-fill-drip"></i></button>
+                                </div>
+                                <div class="flex items-center space-x-1 border-r border-white/10 pr-2">
+                                    <button onclick="setPaintTool('line')" id="tool-line" title="Line" class="paint-tool-btn p-2 rounded-lg text-slate-300 hover:bg-white/10 transition"><i class="fa-solid fa-slash"></i></button>
+                                    <button onclick="setPaintTool('rect')" id="tool-rect" title="Rectangle" class="paint-tool-btn p-2 rounded-lg text-slate-300 hover:bg-white/10 transition"><i class="fa-regular fa-square"></i></button>
+                                    <button onclick="setPaintTool('circle')" id="tool-circle" title="Ellipse" class="paint-tool-btn p-2 rounded-lg text-slate-300 hover:bg-white/10 transition"><i class="fa-regular fa-circle"></i></button>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <input id="paint-color" type="color" value="#0078d4" class="w-7 h-7 bg-transparent rounded cursor-pointer">
+                                    <input id="paint-size" type="range" min="1" max="30" value="5" class="w-20 accent-sky-500 cursor-pointer">
+                                </div>
+                                <div class="ml-auto flex items-center space-x-1">
+                                    <button onclick="undoPaint()" title="Undo" class="p-2 rounded-lg text-slate-300 hover:bg-white/10 transition"><i class="fa-solid fa-rotate-left"></i></button>
+                                    <button onclick="clearPaintCanvas()" title="Clear" class="p-2 rounded-lg text-slate-300 hover:bg-white/10 transition"><i class="fa-solid fa-trash"></i></button>
+                                    <button onclick="downloadPaintCanvas()" title="Save Image" class="p-2 rounded-lg text-emerald-400 hover:bg-white/10 transition"><i class="fa-solid fa-download"></i></button>
+                                </div>
+                            </div>
+                            <!-- Canvas Container -->
+                            <div class="flex-1 flex items-center justify-center p-2 bg-slate-950/50 overflow-auto">
+                                <canvas id="paint-canvas" class="bg-white rounded-xl shadow-lg cursor-crosshair"></canvas>
+                            </div>
+                        </div>
+                    `;
+
+                case 'browser':
+                    return `
+                        <div class="flex flex-col h-full bg-slate-950 text-white select-none">
+                            <!-- Browser Top Bar -->
+                            <div class="h-10 bg-slate-900 border-b border-white/10 flex items-center px-3 space-x-2 text-xs">
+                                <div class="flex items-center space-x-1">
+                                    <button onclick="navigateBrowserBack()" class="w-7 h-7 rounded-lg hover:bg-white/10 flex items-center justify-center text-slate-300 transition"><i class="fa-solid fa-arrow-left"></i></button>
+                                    <button onclick="reloadBrowserFrame()" class="w-7 h-7 rounded-lg hover:bg-white/10 flex items-center justify-center text-slate-300 transition"><i class="fa-solid fa-rotate-right"></i></button>
+                                </div>
+                                <div class="flex-1 flex items-center bg-slate-950 border border-white/10 rounded-lg px-3 py-1 space-x-2">
+                                    <i class="fa-solid fa-lock text-[10px] text-emerald-400"></i>
+                                    <input id="browser-url" type="text" value="https://wikipedia.org" onkeydown="if(event.key==='Enter') navigateCustomUrl(this.value)" class="w-full bg-transparent outline-none text-white text-xs">
+                                </div>
+                            </div>
+                            
+                            <!-- Browser Tab Bar -->
+                            <div class="flex items-center bg-slate-950 px-2 pt-2 space-x-1 border-b border-white/10 text-xs">
+                                <button onclick="switchBrowserTab('wikipedia')" id="tab-wikipedia" class="browser-tab px-4 py-1.5 rounded-t-xl bg-slate-900 text-sky-400 font-medium flex items-center space-x-2 transition">
+                                    <i class="fa-solid fa-globe"></i><span>Wikipedia</span>
+                                </button>
+                                <button onclick="switchBrowserTab('chatgpt')" id="tab-chatgpt" class="browser-tab px-4 py-1.5 rounded-t-xl text-slate-400 hover:bg-white/5 flex items-center space-x-2 transition">
+                                    <i class="fa-solid fa-robot text-emerald-400"></i><span>ChatGPT</span>
+                                </button>
+                                <button onclick="switchBrowserTab('youtube')" id="tab-youtube" class="browser-tab px-4 py-1.5 rounded-t-xl text-slate-400 hover:bg-white/5 flex items-center space-x-2 transition">
+                                    <i class="fa-brands fa-youtube text-rose-500"></i><span>YouTube</span>
+                                </button>
+                            </div>
+
+                            <!-- App Viewports / IFrames -->
+                            <div class="flex-1 relative bg-white">
+                                <iframe id="browser-frame" src="https://wikipedia.org" class="w-full h-full border-none"></iframe>
+                                
+                                <!-- Actual ChatGPT Live Iframe View -->
+                                <div id="browser-chatgpt-view" class="hidden absolute inset-0 bg-slate-900">
+                                    <iframe src="https://chatgpt.com" class="w-full h-full border-none"></iframe>
+                                </div>
+
+                                <!-- Actual YouTube Live Iframe View -->
+                                <div id="browser-youtube-view" class="hidden absolute inset-0 bg-slate-950">
+                                    <iframe src="https://www.youtube.com" class="w-full h-full border-none"></iframe>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                case 'terminal':
+                    return `
+                        <div class="flex flex-col h-full bg-slate-950 text-emerald-400 p-3 font-mono text-xs overflow-y-auto" id="term-body">
+                            <div>Windows PowerShell v7.4.0</div>
+                            <div class="text-slate-500 mb-2">Type 'help' to view available commands.</div>
+                            <div id="term-output"></div>
+                            <div class="flex items-center space-x-2 mt-1">
+                                <span>PS C:\\Users\\Admin&gt;</span>
+                                <input id="term-input" type="text" onkeydown="handleTermCmd(event)" class="flex-1 bg-transparent outline-none text-white font-mono">
+                            </div>
+                        </div>
+                    `;
+
+                case 'calculator':
+                    return `
+                        <div class="flex flex-col h-full bg-slate-950 p-4 text-white">
+                            <div id="calc-disp" class="bg-slate-900 p-4 rounded-2xl text-right text-3xl font-mono mb-4 text-emerald-400">0</div>
+                            <div class="grid grid-cols-4 gap-2 flex-1">
+                                <button onclick="calcInput('C')" class="bg-rose-500/20 text-rose-400 rounded-xl font-bold">C</button>
+                                <button onclick="calcInput('(')" class="bg-slate-800 rounded-xl font-bold">(</button>
+                                <button onclick="calcInput(')')" class="bg-slate-800 rounded-xl font-bold">)</button>
+                                <button onclick="calcInput('/')" class="bg-sky-600 rounded-xl font-bold">÷</button>
+                                <button onclick="calcInput('7')" class="bg-slate-800 rounded-xl font-bold">7</button>
+                                <button onclick="calcInput('8')" class="bg-slate-800 rounded-xl font-bold">8</button>
+                                <button onclick="calcInput('9')" class="bg-slate-800 rounded-xl font-bold">9</button>
+                                <button onclick="calcInput('*')" class="bg-sky-600 rounded-xl font-bold">×</button>
+                                <button onclick="calcInput('4')" class="bg-slate-800 rounded-xl font-bold">4</button>
+                                <button onclick="calcInput('5')" class="bg-slate-800 rounded-xl font-bold">5</button>
+                                <button onclick="calcInput('6')" class="bg-slate-800 rounded-xl font-bold">6</button>
+                                <button onclick="calcInput('-')" class="bg-sky-600 rounded-xl font-bold">-</button>
+                                <button onclick="calcInput('1')" class="bg-slate-800 rounded-xl font-bold">1</button>
+                                <button onclick="calcInput('2')" class="bg-slate-800 rounded-xl font-bold">2</button>
+                                <button onclick="calcInput('3')" class="bg-slate-800 rounded-xl font-bold">3</button>
+                                <button onclick="calcInput('+')" class="bg-sky-600 rounded-xl font-bold">+</button>
+                                <button onclick="calcInput('0')" class="col-span-2 bg-slate-800 rounded-xl font-bold">0</button>
+                                <button onclick="calcInput('.')" class="bg-slate-800 rounded-xl font-bold">.</button>
+                                <button onclick="calcEval()" class="bg-emerald-600 rounded-xl font-bold">=</button>
+                            </div>
+                        </div>
+                    `;
+
+                case 'notepad':
+                    return `
+                        <div class="flex flex-col h-full bg-slate-950 text-slate-100">
+                            <div class="flex items-center space-x-3 px-3 py-1.5 bg-slate-900 border-b border-white/10 text-xs">
+                                <button onclick="saveCloudNote()" class="hover:bg-white/10 px-2 py-0.5 rounded font-semibold text-sky-400">Save to Cloud</button>
+                                <button onclick="document.getElementById('notepad-area').value=''" class="hover:bg-white/10 px-2 py-0.5 rounded">Clear</button>
+                            </div>
+                            <textarea id="notepad-area" class="flex-1 bg-transparent p-4 resize-none outline-none font-mono text-xs text-white" placeholder="Type notes to save securely to cloud..."></textarea>
+                        </div>
+                    `;
+
+                case 'spotify':
+                    return `
+                        <div class="flex flex-col h-full bg-black text-white text-xs select-none">
+                            <div class="flex flex-1 overflow-hidden">
+                                <div class="w-56 bg-zinc-900 p-4 space-y-4 border-r border-zinc-800">
+                                    <div class="flex items-center space-x-2 text-emerald-500 font-bold text-sm"><i class="fa-brands fa-spotify text-xl"></i><span>Spotify</span></div>
+                                    <div class="space-y-2 text-zinc-400 font-medium">
+                                        <div class="text-white bg-zinc-800 p-2 rounded-xl flex items-center space-x-3"><i class="fa-solid fa-house"></i><span>Home</span></div>
+                                        <div class="hover:text-white p-2 rounded-xl flex items-center space-x-3 cursor-pointer"><i class="fa-solid fa-magnifying-glass"></i><span>Search</span></div>
+                                        <div class="hover:text-white p-2 rounded-xl flex items-center space-x-3 cursor-pointer"><i class="fa-solid fa-book"></i><span>Your Library</span></div>
+                                    </div>
+                                </div>
+                                <div class="flex-1 bg-gradient-to-b from-zinc-800 to-zinc-950 p-6 overflow-y-auto">
+                                    <h2 class="text-xl font-bold mb-4">Good evening</h2>
+                                    <div class="grid grid-cols-2 gap-3 mb-6">
+                                        <div class="bg-zinc-800/80 hover:bg-zinc-700 p-3 rounded-xl flex items-center space-x-3 cursor-pointer transition">
+                                            <div class="w-12 h-12 bg-emerald-500 rounded-lg flex items-center justify-center text-xl font-bold"><i class="fa-solid fa-music"></i></div>
+                                            <span class="font-semibold">Top Hits 2026</span>
+                                        </div>
+                                        <div class="bg-zinc-800/80 hover:bg-zinc-700 p-3 rounded-xl flex items-center space-x-3 cursor-pointer transition">
+                                            <div class="w-12 h-12 bg-indigo-600 rounded-lg flex items-center justify-center text-xl font-bold"><i class="fa-solid fa-bolt"></i></div>
+                                            <span class="font-semibold">Phonk & Workout</span>
+                                        </div>
+                                    </div>
+                                    <h3 class="font-bold text-base mb-3">Made For You</h3>
+                                    <div class="grid grid-cols-3 gap-4">
+                                        <div class="bg-zinc-900/80 p-3 rounded-xl cursor-pointer hover:bg-zinc-800 transition">
+                                            <div class="w-full h-32 bg-zinc-800 rounded-lg mb-2 flex items-center justify-center text-3xl text-zinc-500"><i class="fa-solid fa-compact-disc"></i></div>
+                                            <p class="font-semibold">Daily Mix 1</p>
+                                            <p class="text-[10px] text-zinc-400">Drake, Travis Scott, 21 Savage</p>
+                                        </div>
+                                        <div class="bg-zinc-900/80 p-3 rounded-xl cursor-pointer hover:bg-zinc-800 transition">
+                                            <div class="w-full h-32 bg-zinc-800 rounded-lg mb-2 flex items-center justify-center text-3xl text-zinc-500"><i class="fa-solid fa-compact-disc"></i></div>
+                                            <p class="font-semibold">Discover Weekly</p>
+                                            <p class="text-[10px] text-zinc-400">Your weekly mixtape of fresh music</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="h-20 bg-zinc-900 border-t border-zinc-800 flex items-center px-4 justify-between">
+                                <div class="flex items-center space-x-3">
+                                    <div class="w-12 h-12 bg-zinc-800 rounded-lg flex items-center justify-center text-emerald-400 text-lg"><i class="fa-solid fa-music"></i></div>
+                                    <div><p class="font-semibold text-white">Alithino</p><p class="text-[10px] text-zinc-400">Light</p></div>
+                                </div>
+                                <div class="flex flex-col items-center space-y-1">
+                                    <div class="flex items-center space-x-4 text-base">
+                                        <i class="fa-solid fa-shuffle text-zinc-400 hover:text-white cursor-pointer"></i>
+                                        <i class="fa-solid fa-backward-step text-zinc-400 hover:text-white cursor-pointer"></i>
+                                        <i class="fa-solid fa-circle-play text-2xl text-white hover:scale-110 cursor-pointer transition"></i>
+                                        <i class="fa-solid fa-forward-step text-zinc-400 hover:text-white cursor-pointer"></i>
+                                        <i class="fa-solid fa-repeat text-zinc-400 hover:text-white cursor-pointer"></i>
+                                    </div>
+                                </div>
+                                <div class="flex items-center space-x-2 text-zinc-400">
+                                    <i class="fa-solid fa-volume-high"></i>
+                                    <input type="range" min="0" max="100" value="80" class="w-20 accent-emerald-500 h-1 bg-zinc-700 rounded cursor-pointer">
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                case 'xbox':
+                    return `
+                        <div class="flex flex-col h-full bg-zinc-950 text-white text-xs select-none">
+                            <div class="h-12 bg-emerald-950/40 border-b border-white/10 flex items-center px-6 justify-between">
+                                <div class="flex items-center space-x-3 font-bold text-emerald-400 text-sm"><i class="fa-brands fa-xbox text-xl"></i><span>Xbox Cloud Gaming</span></div>
+                                <div class="flex items-center space-x-2"><span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span><span class="text-emerald-400 font-medium">Ready to Play</span></div>
+                            </div>
+                            <div class="flex-1 p-6 overflow-y-auto space-y-6">
+                                <div class="relative rounded-2xl overflow-hidden bg-gradient-to-r from-emerald-900 to-slate-900 p-8 shadow-2xl flex flex-col justify-end h-64 border border-emerald-500/20">
+                                    <h2 class="text-3xl font-bold mb-2">Halo Infinite</h2>
+                                    <p class="text-zinc-300 max-w-md mb-4">When all hope is lost and humanity's fate hangs in the balance, the Master Chief is ready to confront the most ruthless foe he's ever faced.</p>
+                                    <button onclick="showNotification('Xbox', 'Launching game stream...')" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-6 py-3 rounded-xl w-40 transition shadow-lg flex items-center justify-center space-x-2"><i class="fa-solid fa-play"></i><span>Play Now</span></button>
+                                </div>
+                                <h3 class="font-bold text-base">Cloud Library</h3>
+                                <div class="grid grid-cols-4 gap-4">
+                                    <div class="bg-zinc-900 p-3 rounded-xl hover:bg-zinc-800 cursor-pointer transition border border-white/5">
+                                        <div class="h-28 bg-gradient-to-tr from-sky-600 to-indigo-700 rounded-lg mb-2 flex items-center justify-center font-bold text-lg">Forza Horizon 5</div>
+                                        <p class="font-semibold">Forza Horizon 5</p>
+                                        <p class="text-[10px] text-emerald-400 font-medium">Cloud Gaming</p>
+                                    </div>
+                                    <div class="bg-zinc-900 p-3 rounded-xl hover:bg-zinc-800 cursor-pointer transition border border-white/5">
+                                        <div class="h-28 bg-gradient-to-tr from-emerald-600 to-teal-800 rounded-lg mb-2 flex items-center justify-center font-bold text-lg">Minecraft</div>
+                                        <p class="font-semibold">Minecraft</p>
+                                        <p class="text-[10px] text-emerald-400 font-medium">Cloud Gaming</p>
+                                    </div>
+                                    <div class="bg-zinc-900 p-3 rounded-xl hover:bg-zinc-800 cursor-pointer transition border border-white/5">
+                                        <div class="h-28 bg-gradient-to-tr from-rose-600 to-purple-800 rounded-lg mb-2 flex items-center justify-center font-bold text-lg">Starfield</div>
+                                        <p class="font-semibold">Starfield</p>
+                                        <p class="text-[10px] text-emerald-400 font-medium">Cloud Gaming</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                case 'weather':
+                    return `
+                        <div class="flex flex-col h-full bg-gradient-to-br from-sky-600 to-indigo-900 text-white p-6 select-none justify-between">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <h2 class="text-2xl font-bold">Athens, Greece</h2>
+                                    <p class="text-xs text-sky-200">Thursday, November 5</p>
+                                </div>
+                                <div class="text-right">
+                                    <i class="fa-solid fa-cloud-sun text-4xl text-amber-300"></i>
+                                    <p class="text-xs font-semibold">Sunny & Pleasant</p>
+                                </div>
+                            </div>
+                            <div class="my-auto text-center py-6">
+                                <div class="text-7xl font-light tracking-tighter mb-2">72°F</div>
+                                <p class="text-sm font-medium">High: 76° • Low: 62°</p>
+                            </div>
+                            <div class="grid grid-cols-4 gap-3 bg-black/20 win-mica p-4 rounded-2xl border border-white/10 text-center">
+                                <div><p class="text-xs text-sky-200">Wind</p><p class="font-bold">8 mph</p></div>
+                                <div><p class="text-xs text-sky-200">Humidity</p><p class="font-bold">45%</p></div>
+                                <div><p class="text-xs text-sky-200">Visibility</p><p class="font-bold">10 mi</p></div>
+                                <div><p class="text-xs text-sky-200">Air Quality</p><p class="font-bold text-emerald-400">Good</p></div>
+                            </div>
+                        </div>
+                    `;
+
+                case 'camera':
+                    return `
+                        <div class="flex flex-col h-full bg-black text-white select-none relative">
+                            <div class="flex-1 relative flex items-center justify-center bg-zinc-950 overflow-hidden">
+                                <div class="absolute inset-10 border-2 border-white/20 rounded-3xl flex items-center justify-center pointer-events-none">
+                                    <div class="w-8 h-8 border-t-2 border-l-2 border-white absolute top-4 left-4"></div>
+                                    <div class="w-8 h-8 border-t-2 border-r-2 border-white absolute top-4 right-4"></div>
+                                    <div class="w-8 h-8 border-b-2 border-l-2 border-white absolute bottom-4 left-4"></div>
+                                    <div class="w-8 h-8 border-b-2 border-r-2 border-white absolute bottom-4 right-4"></div>
+                                </div>
+                                <div class="flex flex-col items-center space-y-3">
+                                    <div class="w-20 h-20 rounded-full bg-zinc-800/80 border border-white/20 flex items-center justify-center text-3xl"><i class="fa-solid fa-user"></i></div>
+                                    <p class="text-xs text-zinc-400">Virtual WebOS Camera Ready</p>
+                                </div>
+                            </div>
+                            <div class="h-20 bg-zinc-900 flex items-center justify-center space-x-8">
+                                <button onclick="showNotification('Camera', 'Photo captured successfully!')" class="w-14 h-14 rounded-full bg-white hover:scale-105 active:scale-95 transition shadow-xl border-4 border-zinc-700"></button>
+                            </div>
+                        </div>
+                    `;
+
+                case 'store':
+                    return `
+                        <div class="flex flex-col h-full bg-slate-950 text-white text-xs select-none">
+                            <div class="h-12 bg-slate-900 border-b border-white/10 flex items-center px-6 justify-between">
+                                <div class="flex items-center space-x-2 text-sky-400 font-bold text-sm"><i class="fa-solid fa-bag-shopping"></i><span>Microsoft Store</span></div>
+                                <input type="text" placeholder="Search apps, games, movies..." class="bg-slate-950 border border-white/15 rounded-xl px-4 py-1.5 w-64 text-white outline-none">
+                            </div>
+                            <div class="flex-1 p-6 overflow-y-auto space-y-6">
+                                <div class="bg-gradient-to-r from-blue-900 to-indigo-900 p-6 rounded-2xl flex items-center justify-between border border-blue-500/30">
+                                    <div>
+                                        <span class="bg-blue-500 text-white text-[10px] px-2.5 py-0.5 rounded-full font-bold">FEATURED</span>
+                                        <h2 class="text-2xl font-bold mt-2">Discord Desktop</h2>
+                                        <p class="text-xs text-blue-200 mt-1">All-in-one voice and text chat for gamers and communities.</p>
+                                        <button onclick="installAppStore('discord', this)" class="mt-4 bg-white text-blue-950 font-bold px-5 py-2 rounded-xl hover:bg-blue-100 transition shadow">Install</button>
+                                    </div>
+                                    <div class="w-20 h-20 bg-indigo-600 rounded-2xl flex items-center justify-center text-4xl shadow-xl"><i class="fa-brands fa-discord"></i></div>
+                                </div>
+                                <h3 class="font-bold text-sm">Top Free Apps & Games</h3>
+                                <div class="grid grid-cols-3 gap-4">
+                                    <div class="bg-slate-900 p-4 rounded-xl flex items-center justify-between border border-white/5">
+                                        <div class="flex items-center space-x-3">
+                                            <div class="w-12 h-12 bg-orange-500/20 text-orange-400 rounded-xl flex items-center justify-center text-2xl"><i class="fa-solid fa-cat"></i></div>
+                                            <div><p class="font-semibold">Scratch 3.0</p><p class="text-[10px] text-slate-400">Coding • Free</p></div>
+                                        </div>
+                                        <button onclick="installAppStore('scratch', this)" class="bg-sky-600 hover:bg-sky-500 px-3 py-1.5 rounded-lg font-semibold transition">Install</button>
+                                    </div>
+                                    <div class="bg-slate-900 p-4 rounded-xl flex items-center justify-between border border-white/5">
+                                        <div class="flex items-center space-x-3">
+                                            <div class="w-12 h-12 bg-emerald-500/20 text-emerald-400 rounded-xl flex items-center justify-center text-2xl"><i class="fa-solid fa-code"></i></div>
+                                            <div><p class="font-semibold">VS Code Pro</p><p class="text-[10px] text-slate-400">Developer</p></div>
+                                        </div>
+                                        <button onclick="showNotification('Store', 'VS Code installed!')" class="bg-sky-600 hover:bg-sky-500 px-3 py-1.5 rounded-lg font-semibold transition">Install</button>
+                                    </div>
+                                    <div class="bg-slate-900 p-4 rounded-xl flex items-center justify-between border border-white/5">
+                                        <div class="flex items-center space-x-3">
+                                            <div class="w-12 h-12 bg-purple-500/20 text-purple-400 rounded-xl flex items-center justify-center text-2xl"><i class="fa-solid fa-gamepad"></i></div>
+                                            <div><p class="font-semibold">Minecraft</p><p class="text-[10px] text-slate-400">Gaming</p></div>
+                                        </div>
+                                        <button onclick="showNotification('Store', 'Minecraft installed!')" class="bg-sky-600 hover:bg-sky-500 px-3 py-1.5 rounded-lg font-semibold transition">Install</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                case 'discord':
+                    return `
+                        <div class="flex h-full text-white text-xs select-none bg-[#313338]">
+                            <!-- Servers Sidebar -->
+                            <div class="w-[72px] bg-[#1e1f22] py-3 flex flex-col items-center space-y-3 shrink-0">
+                                <div onclick="switchDiscordServer('home')" id="d-server-home" class="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-[#5865F2] flex items-center justify-center text-xl cursor-pointer transition-all shadow"><i class="fa-brands fa-discord"></i></div>
+                                <div class="w-8 h-[2px] bg-[#35363c] rounded-full"></div>
+                                <div onclick="switchDiscordServer('gaming')" id="d-server-gaming" class="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-[#2b2d31] hover:bg-[#5865F2] flex items-center justify-center text-lg text-[#dbdee1] hover:text-white cursor-pointer transition-all"><i class="fa-solid fa-gamepad"></i></div>
+                                <div onclick="switchDiscordServer('dev')" id="d-server-dev" class="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-[#2b2d31] hover:bg-[#5865F2] flex items-center justify-center text-lg text-[#dbdee1] hover:text-white cursor-pointer transition-all"><i class="fa-solid fa-code"></i></div>
+                            </div>
+                            <!-- Channels Sidebar -->
+                            <div class="w-60 bg-[#2b2d31] flex flex-col justify-between shrink-0 border-r border-[#1f2023]">
+                                <div class="p-3 space-y-4">
+                                    <div class="font-bold text-sm px-2 text-[#f2f3f5] border-b border-[#3f4147] pb-3 flex justify-between items-center">
+                                        <span id="discord-server-title">WebOS Community</span>
+                                        <i class="fa-solid fa-angle-down text-xs"></i>
+                                    </div>
+                                    <div class="space-y-1">
+                                        <div class="text-[11px] font-bold text-[#949ba4] uppercase tracking-wider px-2 mb-1 flex justify-between items-center"><span>Text Channels</span><i class="fa-solid fa-plus text-xs"></i></div>
+                                        <div onclick="switchDiscordChannel('general')" id="d-chan-general" class="px-2.5 py-2 rounded-lg bg-[#35363c] text-white font-medium flex items-center space-x-2 cursor-pointer"><i class="fa-solid fa-hashtag text-[#80848e]"></i><span>general</span></div>
+                                        <div onclick="switchDiscordChannel('development')" id="d-chan-development" class="px-2.5 py-2 rounded-lg hover:bg-[#35363c]/60 text-[#949ba4] hover:text-[#dbdee1] flex items-center space-x-2 cursor-pointer"><i class="fa-solid fa-hashtag text-[#80848e]"></i><span>development</span></div>
+                                        <div onclick="switchDiscordChannel('announcements')" id="d-chan-announcements" class="px-2.5 py-2 rounded-lg hover:bg-[#35363c]/60 text-[#949ba4] hover:text-[#dbdee1] flex items-center space-x-2 cursor-pointer"><i class="fa-solid fa-hashtag text-[#80848e]"></i><span>announcements</span></div>
+                                    </div>
+                                </div>
+                                <!-- User Voice / Profile Bar -->
+                                <div class="bg-[#232428] p-2.5 flex items-center justify-between">
+                                    <div class="flex items-center space-x-2 cursor-pointer">
+                                        <div class="w-8 h-8 rounded-full bg-[#5865F2] flex items-center justify-center font-bold relative">A<div class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-[#23a55a] rounded-full border-2 border-[#232428]"></div></div>
+                                        <div><p class="font-semibold text-white leading-tight">Administrator</p><p class="text-[10px] text-[#949ba4] leading-tight">#0001</p></div>
+                                    </div>
+                                    <div class="flex items-center space-x-1.5 text-[#b5bac1]">
+                                        <button onclick="showNotification('Discord', 'Muted microphone')" class="p-1.5 hover:bg-[#35363c] rounded hover:text-white"><i class="fa-solid fa-microphone"></i></button>
+                                        <button onclick="showNotification('Discord', 'Deafened audio')" class="p-1.5 hover:bg-[#35363c] rounded hover:text-white"><i class="fa-solid fa-headphones"></i></button>
+                                        <button onclick="openApp('settings')" class="p-1.5 hover:bg-[#35363c] rounded hover:text-white"><i class="fa-solid fa-gear"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Chat Area -->
+                            <div class="flex-1 flex flex-col bg-[#313338]">
+                                <div class="h-12 border-b border-[#1f2023] flex items-center px-4 font-bold text-sm text-white space-x-2 shrink-0">
+                                    <i class="fa-solid fa-hashtag text-[#80848e]"></i>
+                                    <span id="discord-active-channel-name">general</span>
+                                </div>
+                                <div id="discord-messages-box" class="flex-1 p-4 overflow-y-auto space-y-4">
+                                    <div class="flex items-start space-x-4">
+                                        <div class="w-10 h-10 rounded-full bg-[#5865F2] flex items-center justify-center font-bold text-base shrink-0">W</div>
+                                        <div>
+                                            <div class="flex items-center space-x-2"><span class="font-semibold text-white">System Bot</span><span class="text-[10px] text-[#949ba4]">Today at 7:00 PM</span></div>
+                                            <p class="text-[#dbdee1] mt-1">Welcome to Discord on Windows 11 WebOS! Chat with friends and share your projects.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="p-4 shrink-0">
+                                    <div class="bg-[#383a40] rounded-xl px-4 py-2.5 flex items-center space-x-3">
+                                        <button class="text-[#b5bac1] hover:text-white"><i class="fa-solid fa-circle-plus text-lg"></i></button>
+                                        <input id="discord-msg-input" type="text" placeholder="Message #general" onkeydown="if(event.key==='Enter') sendDiscordMessage()" class="flex-1 bg-transparent outline-none text-[#dbdee1] placeholder-[#80848e]">
+                                        <button class="text-[#b5bac1] hover:text-white"><i class="fa-solid fa-gift"></i></button>
+                                        <button class="text-[#b5bac1] hover:text-white"><i class="fa-solid fa-note-sticky"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                case 'scratch':
+                    return `
+                        <div class="flex flex-col h-full bg-[#fcfcfc] text-slate-800 text-xs select-none font-sans">
+                            <!-- Scratch Top Header Bar -->
+                            <div class="h-12 bg-[#4c97ff] flex items-center px-4 justify-between text-white shrink-0 shadow-md">
+                                <div class="flex items-center space-x-4">
+                                    <div class="flex items-center space-x-2 font-bold text-sm"><i class="fa-solid fa-cat text-xl"></i><span>Scratch</span></div>
+                                    <div class="flex items-center space-x-3 text-xs font-medium">
+                                        <div onclick="saveScratchProject()" class="hover:bg-white/10 px-3 py-1.5 rounded-lg cursor-pointer flex items-center space-x-1.5 font-semibold bg-white/20"><i class="fa-solid fa-floppy-disk"></i><span>Save Project</span></div>
+                                        <div class="hover:bg-white/10 px-3 py-1.5 rounded-lg cursor-pointer flex items-center space-x-1.5" onclick="showNotification('Scratch', 'File menu opened')"><span>File</span><i class="fa-solid fa-angle-down text-[10px]"></i></div>
+                                        <div class="hover:bg-white/10 px-3 py-1.5 rounded-lg cursor-pointer flex items-center space-x-1.5" onclick="showNotification('Scratch', 'Edit menu opened')"><span>Edit</span><i class="fa-solid fa-angle-down text-[10px]"></i></div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center space-x-3 text-xs font-semibold">
+                                    <span class="hover:underline cursor-pointer">Join Scratch</span>
+                                    <span class="bg-white text-[#4c97ff] px-4 py-1.5 rounded-full shadow hover:bg-slate-100 cursor-pointer">Sign in</span>
+                                </div>
+                            </div>
+
+                            <!-- Scratch Sub-Tab Bar -->
+                            <div class="h-10 bg-white border-b border-slate-200 flex items-center px-4 space-x-2 shrink-0">
+                                <button onclick="switchScratchTab('code')" id="scratch-tab-code" class="scratch-tab px-4 py-1.5 rounded-lg bg-[#4c97ff] text-white font-medium shadow-sm transition">Code</button>
+                                <button onclick="switchScratchTab('costumes')" id="scratch-tab-costumes" class="scratch-tab px-4 py-1.5 rounded-lg hover:bg-slate-100 text-slate-600 font-medium transition">Costumes</button>
+                                <button onclick="switchScratchTab('sounds')" id="scratch-tab-sounds" class="scratch-tab px-4 py-1.5 rounded-lg hover:bg-slate-100 text-slate-600 font-medium transition">Sounds</button>
+                            </div>
+
+                            <!-- Scratch Main Workspace Grid -->
+                            <div class="flex flex-1 overflow-hidden">
+                                <!-- Category Palette Sidebar -->
+                                <div class="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 overflow-y-auto p-3 space-y-3">
+                                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Motion</div>
+                                    <div onclick="addScratchBlock('move')" draggable="true" ondragstart="event.dataTransfer.setData('text/plain', 'move')" class="p-3 rounded-xl bg-[#4c97ff] text-white font-medium cursor-grab active:cursor-grabbing shadow-sm flex items-center justify-between hover:opacity-90"><span>move <input type="number" value="10" id="bval-move" class="w-10 bg-white/20 rounded px-1 text-center text-white outline-none mx-1" onclick="event.stopPropagation()"> steps</span><i class="fa-solid fa-grip-vertical opacity-50"></i></div>
+                                    <div onclick="addScratchBlock('turnR')" draggable="true" ondragstart="event.dataTransfer.setData('text/plain', 'turnR')" class="p-3 rounded-xl bg-[#4c97ff] text-white font-medium cursor-grab active:cursor-grabbing shadow-sm flex items-center justify-between hover:opacity-90"><span>turn ↻ <input type="number" value="15" id="bval-turn" class="w-10 bg-white/20 rounded px-1 text-center text-white outline-none mx-1" onclick="event.stopPropagation()"> degrees</span><i class="fa-solid fa-grip-vertical opacity-50"></i></div>
+                                    <div onclick="addScratchBlock('point')" draggable="true" ondragstart="event.dataTransfer.setData('text/plain', 'point')" class="p-3 rounded-xl bg-[#4c97ff] text-white font-medium cursor-grab active:cursor-grabbing shadow-sm flex items-center justify-between hover:opacity-90"><span>point towards mouse-pointer</span><i class="fa-solid fa-grip-vertical opacity-50"></i></div>
+                                    
+                                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider pt-2">Looks</div>
+                                    <div onclick="addScratchBlock('say')" draggable="true" ondragstart="event.dataTransfer.setData('text/plain', 'say')" class="p-3 rounded-xl bg-[#9966ff] text-white font-medium cursor-grab active:cursor-grabbing shadow-sm flex items-center justify-between hover:opacity-90"><span>say <input type="text" value="Hello!" id="bval-say" class="w-16 bg-white/20 rounded px-1 text-white outline-none mx-1" onclick="event.stopPropagation()"> for 2 secs</span><i class="fa-solid fa-grip-vertical opacity-50"></i></div>
+                                    
+                                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider pt-2">Sound</div>
+                                    <div onclick="addScratchBlock('sound')" draggable="true" ondragstart="event.dataTransfer.setData('text/plain', 'sound')" class="p-3 rounded-xl bg-[#cf63cf] text-white font-medium cursor-grab active:cursor-grabbing shadow-sm flex items-center justify-between hover:opacity-90"><span>play sound meow</span><i class="fa-solid fa-grip-vertical opacity-50"></i></div>
+                                    
+                                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider pt-2">Variables</div>
+                                    <div onclick="addScratchBlock('var')" draggable="true" ondragstart="event.dataTransfer.setData('text/plain', 'var')" class="p-3 rounded-xl bg-[#ff8c1a] text-white font-medium cursor-grab active:cursor-grabbing shadow-sm flex items-center justify-between hover:opacity-90"><span>change my_variable by 1</span><i class="fa-solid fa-grip-vertical opacity-50"></i></div>
+                                    
+                                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider pt-2">Events</div>
+                                    <div onclick="addScratchBlock('event')" draggable="true" ondragstart="event.dataTransfer.setData('text/plain', 'event')" class="p-3 rounded-xl bg-[#ffab19] text-white font-medium cursor-grab active:cursor-grabbing shadow-sm flex items-center justify-between hover:opacity-90"><span>when ⚑ clicked</span><i class="fa-solid fa-grip-vertical opacity-50"></i></div>
+                                </div>
+
+                                <!-- Script Workspace Grid -->
+                                <div class="flex-1 bg-[#f9f9f9] p-6 overflow-y-auto relative flex flex-col" id="scratch-workspace" ondragover="event.preventDefault()" ondrop="handleScratchDrop(event)">
+                                    <div class="absolute top-4 right-4 flex space-x-2 bg-white p-1 rounded-xl shadow border border-slate-200 z-10">
+                                        <button onclick="runScratchScripts()" title="Green Flag" class="w-9 h-9 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white flex items-center justify-center font-bold shadow text-sm"><i class="fa-solid fa-flag"></i></button>
+                                        <button onclick="clearScratchWorkspace()" title="Stop" class="w-9 h-9 rounded-lg bg-rose-500 hover:bg-rose-600 text-white flex items-center justify-center font-bold shadow text-sm"><i class="fa-solid fa-stop"></i></button>
+                                    </div>
+                                    <div id="scratch-blocks-container" class="space-y-2 max-w-lg min-h-[360px] border-2 border-dashed border-slate-300 p-4 rounded-2xl bg-white/50">
+                                        <div class="scratch-block p-3 rounded-xl bg-[#ffab19] text-white font-medium shadow flex justify-between items-center" data-type="event"><span>when ⚑ clicked</span><i class="fa-solid fa-xmark text-white/70 hover:text-white cursor-pointer text-sm" onclick="this.parentElement.remove()"></i></div>
+                                        <div class="scratch-block p-3 rounded-xl bg-[#4c97ff] text-white font-medium shadow flex justify-between items-center" data-type="point"><span>point towards mouse-pointer</span><i class="fa-solid fa-xmark text-white/70 hover:text-white cursor-pointer text-sm" onclick="this.parentElement.remove()"></i></div>
+                                        <div class="scratch-block p-3 rounded-xl bg-[#4c97ff] text-white font-medium shadow flex justify-between items-center" data-type="move" data-val="10"><span>move 10 steps</span><i class="fa-solid fa-xmark text-white/70 hover:text-white cursor-pointer text-sm" onclick="this.parentElement.remove()"></i></div>
+                                        <div class="scratch-block p-3 rounded-xl bg-[#9966ff] text-white font-medium shadow flex justify-between items-center" data-type="say" data-val="Hello!"><span>say Hello! for 2 secs</span><i class="fa-solid fa-xmark text-white/70 hover:text-white cursor-pointer text-sm" onclick="this.parentElement.remove()"></i></div>
+                                    </div>
+                                </div>
+
+                                <!-- Stage & Sprite Panel Right -->
+                                <div class="w-[360px] bg-white border-l border-slate-200 flex flex-col p-4 shrink-0 space-y-4">
+                                    <!-- Stage Preview -->
+                                    <div class="flex flex-col items-center">
+                                        <div class="flex space-x-3 mb-2">
+                                            <button onclick="runScratchScripts()" class="w-9 h-9 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white flex items-center justify-center shadow"><i class="fa-solid fa-play"></i></button>
+                                            <button onclick="clearScratchWorkspace()" class="w-9 h-9 rounded-full bg-rose-500 hover:bg-rose-600 text-white flex items-center justify-center shadow"><i class="fa-solid fa-stop"></i></button>
+                                        </div>
+                                        <div id="scratch-stage" class="w-full h-52 bg-white border-2 border-slate-200 rounded-2xl relative overflow-hidden flex items-center justify-center shadow-inner cursor-crosshair">
+                                            <div id="scratch-sprite-cat" class="text-6xl text-orange-500 transition-all duration-200 absolute"><i class="fa-solid fa-cat"></i></div>
+                                            <div id="scratch-speech-bubble" class="hidden absolute top-4 bg-white text-slate-900 border border-slate-300 px-3 py-1 rounded-xl shadow text-xs font-semibold">Hello!</div>
+                                            <div id="scratch-var-display" class="absolute bottom-3 left-3 bg-orange-500 text-white font-bold px-3 py-1 rounded-lg text-[11px] shadow">my_variable: <span id="scratch-var-val">0</span></div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Sprite Properties Pane -->
+                                    <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-3">
+                                        <div class="flex justify-between items-center text-xs">
+                                            <span class="font-semibold text-slate-700">Sprite</span>
+                                            <input type="text" value="Sprite1" class="bg-white border border-slate-300 rounded px-2 py-1 text-slate-800 font-medium w-36">
+                                        </div>
+                                        <div class="grid grid-cols-2 gap-2 text-xs">
+                                            <div class="bg-white p-2 rounded-xl border border-slate-200 flex justify-between items-center"><span class="text-slate-500">x</span><span id="scratch-x-val" class="font-bold">0</span></div>
+                                            <div class="bg-white p-2 rounded-xl border border-slate-200 flex justify-between items-center"><span class="text-slate-500">y</span><span id="scratch-y-val" class="font-bold">0</span></div>
+                                            <div class="bg-white p-2 rounded-xl border border-slate-200 flex justify-between items-center"><span class="text-slate-500">Size</span><span class="font-bold">100</span></div>
+                                            <div class="bg-white p-2 rounded-xl border border-slate-200 flex justify-between items-center"><span class="text-slate-500">Direction</span><span class="font-bold">90</span></div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Sprite List Icon -->
+                                    <div class="flex items-center space-x-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                                        <div class="w-10 h-10 rounded-xl bg-orange-500/20 text-orange-500 flex items-center justify-center text-xl"><i class="fa-solid fa-cat"></i></div>
+                                        <div><p class="font-bold text-xs">Sprite1</p><p class="text-[10px] text-slate-400">1 costume • 1 sound</p></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                case 'photos':
+                    return `
+                        <div class="flex flex-col h-full bg-slate-950 text-white text-xs select-none">
+                            <div class="h-10 bg-slate-900 border-b border-white/10 flex items-center px-4 font-semibold text-slate-300">All Photos</div>
+                            <div class="flex-1 p-6 grid grid-cols-3 gap-4 overflow-y-auto">
+                                <div class="h-44 rounded-2xl bg-cover border border-white/10 shadow hover:opacity-90 cursor-pointer transition" style="background-image: url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=600&auto=format&fit=crop')"></div>
+                                <div class="h-44 rounded-2xl bg-cover border border-white/10 shadow hover:opacity-90 cursor-pointer transition" style="background-image: url('https://images.unsplash.com/photo-1579546929518-9e396f3cc809?q=80&w=600&auto=format&fit=crop')"></div>
+                                <div class="h-44 rounded-2xl bg-cover border border-white/10 shadow hover:opacity-90 cursor-pointer transition" style="background-image: url('https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=600&auto=format&fit=crop')"></div>
+                            </div>
+                        </div>
+                    `;
+                default:
+                    return `<div class="p-4 text-white">App view not found.</div>`;
+            }
+        }
+
+        /* Discord Chat Logic */
+        let discordCurrentServer = 'home';
+        let discordCurrentChannel = 'general';
+
+        function switchDiscordServer(server) {
+            discordCurrentServer = server;
+            document.querySelectorAll('#d-server-home, #d-server-gaming, #d-server-dev').forEach(el => el.classList.remove('rounded-[16px]', 'bg-[#5865F2]'));
+            document.querySelectorAll('#d-server-home, #d-server-gaming, #d-server-dev').forEach(el => el.classList.add('rounded-[24px]', 'bg-[#2b2d31]'));
+            const active = document.getElementById(`d-server-${server}`);
+            if (active) {
+                active.classList.remove('bg-[#2b2d31]', 'rounded-[24px]');
+                active.classList.add('bg-[#5865F2]', 'rounded-[16px]');
+            }
+            if (server === 'gaming') document.getElementById('discord-server-title').innerText = 'Gaming Lounge';
+            else if (server === 'dev') document.getElementById('discord-server-title').innerText = 'Developer Hub';
+            else document.getElementById('discord-server-title').innerText = 'WebOS Community';
+        }
+
+        function switchDiscordChannel(chan) {
+            discordCurrentChannel = chan;
+            document.getElementById('discord-active-channel-name').innerText = chan;
+        }
+
+        function sendDiscordMessage() {
+            const input = document.getElementById('discord-msg-input');
+            const text = input.value.trim();
+            if (!text) return;
+
+            if (window.db && window.appId && window.auth && window.auth.currentUser) {
+                const userId = window.auth.currentUser.uid;
+                // Save message to Firestore public collection
+                try {
+                    const colRef = collection(window.db, 'artifacts', window.appId, 'public', 'data', 'discord_messages');
+                    addDoc(colRef, {
+                        text: text,
+                        user: 'Administrator',
+                        userId: userId,
+                        timestamp: new Date().toISOString()
+                    });
+                } catch(e) { console.log("DB write error", e); }
+            }
+
+            const box = document.getElementById('discord-messages-box');
+            const msg = document.createElement('div');
+            msg.className = 'flex items-start space-x-4 animate-window-open';
+            msg.innerHTML = `
+                <div class="w-10 h-10 rounded-full bg-[#5865F2] flex items-center justify-center font-bold text-base shrink-0">A</div>
+                <div>
+                    <div class="flex items-center space-x-2"><span class="font-semibold text-white">Administrator</span><span class="text-[10px] text-[#949ba4]">Today at ${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></div>
+                    <p class="text-[#dbdee1] mt-1">${text}</p>
+                </div>
+            `;
+            box.appendChild(msg);
+            input.value = '';
+            box.scrollTop = box.scrollHeight;
+        }
+
+        function initCloudListeners() {
+            if (!window.db || !window.appId) return;
+            try {
+                const q = query(collection(window.db, 'artifacts', window.appId, 'public', 'data', 'discord_messages'));
+                onSnapshot(q, (snapshot) => {
+                    snapshot.docChanges().forEach((change) => {
+                        if (change.type === "added") {
+                            const data = change.doc.data();
+                            if (data.user !== 'Administrator') {
+                                const box = document.getElementById('discord-messages-box');
+                                if (box) {
+                                    const msg = document.createElement('div');
+                                    msg.className = 'flex items-start space-x-4 animate-window-open';
+                                    msg.innerHTML = `
+                                        <div class="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center font-bold text-base shrink-0">${data.user[0]}</div>
+                                        <div>
+                                            <div class="flex items-center space-x-2"><span class="font-semibold text-white">${data.user}</span><span class="text-[10px] text-[#949ba4]">Cloud Sync</span></div>
+                                            <p class="text-[#dbdee1] mt-1">${data.text}</p>
+                                        </div>
+                                    `;
+                                    box.appendChild(msg);
+                                    box.scrollTop = box.scrollHeight;
+                                }
+                            }
+                        }
+                    });
+                }, (err) => console.log("Snapshot error", err));
+            } catch (e) {
+                console.log("Cloud listener error:", e);
+            }
+        }
+
+        async function saveCloudNote() {
+            const val = document.getElementById('notepad-area').value;
+            if (!window.db || !window.appId || !window.auth || !window.auth.currentUser) {
+                showNotification('Saved', 'Notes saved locally (Cloud offline)');
+                return;
+            }
+            try {
+                const userId = window.auth.currentUser.uid;
+                const colRef = collection(window.db, 'artifacts', window.appId, 'users', userId, 'notes');
+                await addDoc(colRef, { content: val, updatedAt: new Date().toISOString() });
+                showNotification('Cloud Storage', 'Note successfully saved to cloud database!');
+            } catch (e) {
+                showNotification('Storage', 'Saved to local session');
+            }
+        }
+
+        /* Scratch Editor Logic */
+        function switchScratchTab(tab) {
+            document.querySelectorAll('.scratch-tab').forEach(el => {
+                el.classList.remove('bg-[#4c97ff]', 'text-white', 'shadow-sm');
+                el.classList.add('hover:bg-slate-100', 'text-slate-600');
+            });
+            const active = document.getElementById(`scratch-tab-${tab}`);
+            if (active) {
+                active.classList.add('bg-[#4c97ff]', 'text-white', 'shadow-sm');
+                active.classList.remove('hover:bg-slate-100', 'text-slate-600');
+            }
+            if (tab === 'costumes') {
+                showNotification('Scratch Costumes', 'Loaded vector costume editor for Sprite1');
+            } else if (tab === 'sounds') {
+                showNotification('Scratch Sounds', 'Playing audio: Meow.wav');
+            }
+        }
+
+        function saveScratchProject() {
+            const blocks = [];
+            document.querySelectorAll('#scratch-blocks-container .scratch-block').forEach(b => {
+                blocks.push({
+                    type: b.dataset.type,
+                    val: b.dataset.val || null
+                });
+            });
+
+            const projectData = {
+                name: "My_Scratch_Project.scratch",
+                createdAt: new Date().toISOString(),
+                blocks: blocks,
+                variable: scratchVarValue
+            };
+
+            // Save to virtual file system storage
+            if (!window.virtualFiles) window.virtualFiles = {};
+            window.virtualFiles["My_Scratch_Project.scratch"] = JSON.stringify(projectData, null, 2);
+
+            // Update Explorer grid dynamically if open
+            const grid = document.getElementById('explorer-files-grid');
+            if (grid && !document.getElementById('file-item-scratch')) {
+                const item = document.createElement('div');
+                item.id = 'file-item-scratch';
+                item.className = 'flex flex-col items-center p-3 rounded-xl hover:bg-white/5 border border-transparent hover:border-white/10 cursor-pointer';
+                item.ondblclick = () => openApp('scratch');
+                item.innerHTML = `
+                    <i class="fa-solid fa-cat text-orange-400 text-4xl mb-1"></i>
+                    <span>My_Scratch_Project.scratch</span>
+                `;
+                grid.appendChild(item);
+            }
+
+            // Also save to Cloud if connected
+            if (window.db && window.appId && window.auth && window.auth.currentUser) {
+                try {
+                    const userId = window.auth.currentUser.uid;
+                    const colRef = collection(window.db, 'artifacts', window.appId, 'users', userId, 'scratch_projects');
+                    addDoc(colRef, projectData);
+                } catch(e) { console.log("Cloud save error", e); }
+            }
+
+            showNotification('Project Saved', 'Saved "My_Scratch_Project.scratch" to File Explorer & Documents!');
+        }
+
+        function addScratchBlock(type) {
+            const container = document.getElementById('scratch-blocks-container');
+            if (!container) return;
+            const block = document.createElement('div');
+            block.className = 'scratch-block p-3 rounded-xl text-white font-medium shadow animate-window-open flex justify-between items-center cursor-pointer';
+            block.dataset.type = type;
+            
+            if (type === 'move') {
+                const val = document.getElementById('bval-move').value || 10;
+                block.dataset.val = val;
+                block.style.backgroundColor = '#4c97ff';
+                block.innerHTML = `<span>move ${val} steps</span><i class="fa-solid fa-xmark text-white/70 hover:text-white" onclick="this.parentElement.remove()"></i>`;
+            } else if (type === 'turnR') {
+                const val = document.getElementById('bval-turn').value || 15;
+                block.dataset.val = val;
+                block.style.backgroundColor = '#4c97ff';
+                block.innerHTML = `<span>turn ↻ ${val} degrees</span><i class="fa-solid fa-xmark text-white/70 hover:text-white" onclick="this.parentElement.remove()"></i>`;
+            } else if (type === 'point') {
+                block.style.backgroundColor = '#4c97ff';
+                block.innerHTML = '<span>point towards mouse-pointer</span><i class="fa-solid fa-xmark text-white/70 hover:text-white" onclick="this.parentElement.remove()"></i>';
+            } else if (type === 'goto') {
+                block.style.backgroundColor = '#4c97ff';
+                block.innerHTML = '<span>go to random position</span><i class="fa-solid fa-xmark text-white/70 hover:text-white" onclick="this.parentElement.remove()"></i>';
+            } else if (type === 'say') {
+                const val = document.getElementById('bval-say').value || 'Hello!';
+                block.dataset.val = val;
+                block.style.backgroundColor = '#9966ff';
+                block.innerHTML = `<span>say ${val} for 2 secs</span><i class="fa-solid fa-xmark text-white/70 hover:text-white" onclick="this.parentElement.remove()"></i>`;
+            } else if (type === 'sound') {
+                block.style.backgroundColor = '#cf63cf';
+                block.innerHTML = '<span>play sound meow</span><i class="fa-solid fa-xmark text-white/70 hover:text-white" onclick="this.parentElement.remove()"></i>';
+            } else if (type === 'var') {
+                block.style.backgroundColor = '#ff8c1a';
+                block.innerHTML = '<span>change my_variable by 1</span><i class="fa-solid fa-xmark text-white/70 hover:text-white" onclick="this.parentElement.remove()"></i>';
+            } else if (type === 'event') {
+                block.style.backgroundColor = '#ffab19';
+                block.innerHTML = '<span>when ⚑ clicked</span><i class="fa-solid fa-xmark text-white/70 hover:text-white" onclick="this.parentElement.remove()"></i>';
+            }
+
+            container.appendChild(block);
+        }
+
+        function handleScratchDrop(e) {
+            e.preventDefault();
+            const type = e.dataTransfer.getData('text/plain');
+            if (type) addScratchBlock(type);
+        }
+
+        function clearScratchWorkspace() {
+            const cat = document.getElementById('scratch-sprite-cat');
+            const bubble = document.getElementById('scratch-speech-bubble');
+            if (cat) {
+                cat.style.transform = `translate(0px, 0px) rotate(0deg)`;
+                document.getElementById('scratch-x-val').innerText = '0';
+                document.getElementById('scratch-y-val').innerText = '0';
+            }
+            if (bubble) bubble.classList.add('hidden');
+            scratchVarValue = 0;
+            document.getElementById('scratch-var-val').innerText = '0';
+        }
+
+        let scratchVarValue = 0;
+        function runScratchScripts() {
+            const cat = document.getElementById('scratch-sprite-cat');
+            const bubble = document.getElementById('scratch-speech-bubble');
+            const stage = document.getElementById('scratch-stage');
+            const blocks = document.querySelectorAll('#scratch-blocks-container .scratch-block');
+            if (!cat) return;
+
+            // Clear any existing active runner
+            if (window.scratchActiveInterval) {
+                clearInterval(window.scratchActiveInterval);
+            }
+
+            const xValEl = document.getElementById('scratch-x-val');
+            const yValEl = document.getElementById('scratch-y-val');
+            let posX = xValEl ? (parseInt(xValEl.innerText) || 0) : 0;
+            let posY = yValEl ? (parseInt(yValEl.innerText) || 0) : 0;
+            let rotation = 0;
+            let stepIndex = 0;
+
+            // Track mouse position on stage
+            let mouseX = 0, mouseY = 0;
+            if (stage) {
+                stage.onmousemove = (ev) => {
+                    const rect = stage.getBoundingClientRect();
+                    mouseX = ev.clientX - rect.left - rect.width / 2;
+                    mouseY = ev.clientY - rect.top - rect.height / 2;
+                };
+            }
+
+            // If no blocks are in workspace, do nothing
+            if (blocks.length === 0) {
+                showNotification('Scratch', 'No blocks in workspace! Add blocks to run.');
+                return;
+            }
+
+            const interval = setInterval(() => {
+                // Verify window/elements still exist to prevent null reference errors
+                if (!document.getElementById('win-scratch') || !document.getElementById('scratch-sprite-cat')) {
+                    clearInterval(interval);
+                    window.scratchActiveInterval = null;
+                    return;
+                }
+
+                if (stepIndex >= blocks.length) {
+                    stepIndex = 0; // Loop through stacked blocks
+                }
+
+                const block = blocks[stepIndex];
+                if (!block) {
+                    stepIndex++;
+                    return;
+                }
+
+                const type = block.dataset.type;
+                const val = block.dataset.val;
+
+                if (type === 'move') {
+                    const steps = parseInt(val) || 10;
+                    const rad = (rotation * Math.PI) / 180;
+                    posX += Math.cos(rad) * steps;
+                    posY += Math.sin(rad) * steps;
+                } else if (type === 'turnR') {
+                    const deg = parseInt(val) || 15;
+                    rotation += deg;
+                } else if (type === 'point') {
+                    const dx = mouseX - posX;
+                    const dy = mouseY - posY;
+                    rotation = Math.atan2(dy, dx) * (180 / Math.PI);
+                    posX += Math.cos((rotation * Math.PI) / 180) * 4;
+                    posY += Math.sin((rotation * Math.PI) / 180) * 4;
+                } else if (type === 'say') {
+                    if (bubble) {
+                        bubble.innerText = val || 'Hello!';
+                        bubble.classList.remove('hidden');
+                        setTimeout(() => {
+                            if (bubble) bubble.classList.add('hidden');
+                        }, 1000);
+                    }
+                } else if (type === 'sound') {
+                    try {
+                        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                        const osc = audioCtx.createOscillator();
+                        const gainNode = audioCtx.createGain();
+                        
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+                        osc.frequency.exponentialRampToValueAtTime(750, audioCtx.currentTime + 0.15);
+                        osc.frequency.exponentialRampToValueAtTime(350, audioCtx.currentTime + 0.4);
+
+                        gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+
+                        osc.connect(gainNode);
+                        gainNode.connect(audioCtx.destination);
+
+                        osc.start();
+                        osc.stop(audioCtx.currentTime + 0.4);
+                    } catch (err) {
+                        console.log('Audio playback error:', err);
+                    }
+                    showNotification('Scratch Audio', '🔊 Meow!');
+                } else if (type === 'var') {
+                    scratchVarValue++;
+                    const varEl = document.getElementById('scratch-var-val');
+                    if (varEl) varEl.innerText = scratchVarValue;
+                }
+
+                if (cat) cat.style.transform = `translate(${posX}px, ${posY}px) rotate(${rotation}deg)`;
+                const xElem = document.getElementById('scratch-x-val');
+                const yElem = document.getElementById('scratch-y-val');
+                if (xElem) xElem.innerText = Math.round(posX);
+                if (yElem) yElem.innerText = Math.round(posY);
+
+                stepIndex++;
+            }, 150);
+
+            window.scratchActiveInterval = interval;
+            showNotification('Scratch', 'Running your stacked blocks!');
+        }
+
+        function clearScratchWorkspace() {
+            if (window.scratchActiveInterval) {
+                clearInterval(window.scratchActiveInterval);
+                window.scratchActiveInterval = null;
+            }
+            const container = document.getElementById('scratch-blocks-container');
+            if (container) container.innerHTML = '';
+            const cat = document.getElementById('scratch-sprite-cat');
+            const bubble = document.getElementById('scratch-speech-bubble');
+            if (cat) {
+                cat.style.transform = 'translate(0px, 0px) rotate(0deg)';
+                const xEl = document.getElementById('scratch-x-val');
+                const yEl = document.getElementById('scratch-y-val');
+                if (xEl) xEl.innerText = '0';
+                if (yEl) yEl.innerText = '0';
+            }
+            if (bubble) bubble.classList.add('hidden');
+            scratchVarValue = 0;
+            const varEl = document.getElementById('scratch-var-val');
+            if (varEl) varEl.innerText = '0';
+        }
+
+        function installAppStore(appId, btn) {
+            btn.innerText = 'Installing...';
+            btn.disabled = true;
+            setTimeout(() => {
+                btn.innerText = 'Open';
+                btn.classList.remove('bg-sky-600', 'bg-white', 'text-blue-950');
+                btn.classList.add('bg-emerald-600', 'text-white');
+                btn.onclick = () => openApp(appId);
+                
+                // Add to desktop apps if not already present
+                if (!DESKTOP_ITEMS.some(item => item.id === appId)) {
+                    const newItem = ALL_START_APPS.find(item => item.id === appId);
+                    if (newItem) {
+                        DESKTOP_ITEMS.push(newItem);
+                        renderDesktopIcons();
+                    }
+                }
+                showNotification('Installation Complete', `${appId.toUpperCase()} is ready to use!`);
+            }, 1000);
+        }
+
+        function setWallpaper(url) {
+            if (!url) return;
+            state.wallpaper = url;
+            localStorage.setItem('win11_wallpaper', url);
+            document.getElementById('desktop-wallpaper').style.backgroundImage = `url('${url}')`;
+            showNotification('Personalization', 'Wallpaper updated successfully');
+        }
+
+        function switchSettingsTab(tab) {
+            document.querySelectorAll('.settings-tab').forEach(el => {
+                el.classList.remove('bg-sky-600', 'font-medium', 'shadow-sm');
+                el.classList.add('hover:bg-white/5', 'text-slate-300');
+            });
+            document.querySelectorAll('.settings-pane').forEach(el => el.classList.add('hidden'));
+
+            const activeTab = document.getElementById(`settings-tab-${tab}`);
+            const activePane = document.getElementById(`settings-content-${tab}`);
+            if (activeTab) {
+                activeTab.classList.add('bg-sky-600', 'font-medium', 'shadow-sm');
+                activeTab.classList.remove('hover:bg-white/5', 'text-slate-300');
+            }
+            if (activePane) {
+                activePane.classList.remove('hidden');
+            }
+        }
+
+        function switchBrowserTab(tab) {
+            document.querySelectorAll('.browser-tab').forEach(el => {
+                el.classList.remove('bg-slate-900', 'text-sky-400', 'font-medium');
+                el.classList.add('text-slate-400');
+            });
+            const activeTab = document.getElementById(`tab-${tab}`);
+            if (activeTab) {
+                activeTab.classList.add('bg-slate-900', 'text-sky-400', 'font-medium');
+                activeTab.classList.remove('text-slate-400');
+            }
+
+            const frame = document.getElementById('browser-frame');
+            const chatgptView = document.getElementById('browser-chatgpt-view');
+            const youtubeView = document.getElementById('browser-youtube-view');
+            const urlInput = document.getElementById('browser-url');
+
+            chatgptView.classList.add('hidden');
+            youtubeView.classList.add('hidden');
+            frame.classList.remove('hidden');
+
+            if (tab === 'wikipedia') {
+                frame.src = 'https://wikipedia.org';
+                urlInput.value = 'https://wikipedia.org';
+            } else if (tab === 'chatgpt') {
+                frame.classList.add('hidden');
+                chatgptView.classList.remove('hidden');
+                urlInput.value = 'https://chatgpt.com';
+            } else if (tab === 'youtube') {
+                frame.classList.add('hidden');
+                youtubeView.classList.remove('hidden');
+                urlInput.value = 'https://www.youtube.com';
+            }
+        }
+
+        function navigateCustomUrl(url) {
+            if (!url.startsWith('http')) url = 'https://' + url;
+            document.getElementById('browser-frame').src = url;
+        }
+
+        function navigateBrowserBack() {
+            document.getElementById('browser-frame').contentWindow.history.back();
+        }
+
+        function reloadBrowserFrame() {
+            const frame = document.getElementById('browser-frame');
+            frame.src = frame.src;
+        }
+
+        /* Calculator Logic */
+        let calcVal = '';
+        function calcInput(char) {
+            if (calcVal === '0' && char !== '.') calcVal = '';
+            calcVal += char;
+            document.getElementById('calc-disp').innerText = calcVal || '0';
+        }
+        function calcEval() {
+            try {
+                calcVal = String(eval(calcVal));
+                document.getElementById('calc-disp').innerText = calcVal;
+            } catch {
+                document.getElementById('calc-disp').innerText = 'Error';
+                calcVal = '';
+            }
+        }
+
+        /* Terminal Logic */
+        function handleTermCmd(e) {
+            if (e.key === 'Enter') {
+                const input = document.getElementById('term-input');
+                const output = document.getElementById('term-output');
+                const val = input.value.trim();
+                
+                const line = document.createElement('div');
+                line.innerText = `PS C:\\Users\\Admin> ${val}`;
+                output.appendChild(line);
+
+                const res = document.createElement('div');
+                res.className = 'text-slate-300 mb-1';
+
+                if (val === 'help') {
+                    res.innerText = 'Available commands: help, clear, date, whoami, reboot, version';
+                } else if (val === 'clear') {
+                    output.innerHTML = '';
+                    input.value = '';
+                    return;
+                } else if (val === 'date') {
+                    res.innerText = new Date().toString();
+                } else if (val === 'whoami') {
+                    res.innerText = 'WIN11-WEBOS\\Administrator';
+                } else if (val === 'reboot') {
+                    location.reload();
+                } else if (val === 'version') {
+                    res.innerText = 'Windows 11 WebOS Build 26100.ge_release';
+                } else if (val === '') {
+                    res.innerText = '';
+                } else {
+                    res.innerText = `'${val}' is not recognized as an internal or external command.`;
+                }
+
+                output.appendChild(res);
+                input.value = '';
+                const body = document.getElementById('term-body');
+                body.scrollTop = body.scrollHeight;
+            }
+        }
+
+        /* Snake Game Runtime */
+        let snakeGameInterval = null;
+        function initSnakeApp() {
+            const canvas = document.getElementById('snake-canvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const grid = 20;
+            let count = 0;
+            let score = 0;
+
+            let snake = {
+                x: 160,
+                y: 160,
+                dx: grid,
+                dy: 0,
+                cells: [],
+                maxCells: 4
+            };
+            let apple = { x: 320, y: 320 };
+
+            function getRandomInt(min, max) {
+                return Math.floor(Math.random() * (max - min)) + min;
+            }
+
+            function loop() {
+                snakeGameInterval = requestAnimationFrame(loop);
+                if (++count < 6) return;
+                count = 0;
+
+                ctx.clearRect(0,0,canvas.width,canvas.height);
+
+                snake.x += snake.dx;
+                snake.y += snake.dy;
+
+                if (snake.x < 0) snake.x = canvas.width - grid;
+                else if (snake.x >= canvas.width) snake.x = 0;
+
+                if (snake.y < 0) snake.y = canvas.height - grid;
+                else if (snake.y >= canvas.height) snake.y = 0;
+
+                snake.cells.unshift({ x: snake.x, y: snake.y });
+                if (snake.cells.length > snake.maxCells) snake.cells.pop();
+
+                ctx.fillStyle = '#f43f5e';
+                ctx.fillRect(apple.x, apple.y, grid-1, grid-1);
+
+                ctx.fillStyle = '#10b981';
+                snake.cells.forEach((cell, index) => {
+                    ctx.fillRect(cell.x, cell.y, grid-1, grid-1);
+                    if (cell.x === apple.x && cell.y === apple.y) {
+                        snake.maxCells++;
+                        score += 10;
+                        document.getElementById('snake-score').innerText = score;
+                        apple.x = getRandomInt(0, 18) * grid;
+                        apple.y = getRandomInt(0, 18) * grid;
+                    }
+                    for (let i = index + 1; i < snake.cells.length; i++) {
+                        if (cell.x === snake.cells[i].x && cell.y === snake.cells[i].y) {
+                            snake.x = 160;
+                            snake.y = 160;
+                            snake.cells = [];
+                            snake.maxCells = 4;
+                            score = 0;
+                            document.getElementById('snake-score').innerText = score;
+                        }
+                    }
+                });
+            }
+
+            document.addEventListener('keydown', e => {
+                if (e.key === 'ArrowLeft' && snake.dx === 0) { snake.dx = -grid; snake.dy = 0; }
+                else if (e.key === 'ArrowUp' && snake.dy === 0) { snake.dy = -grid; snake.dx = 0; }
+                else if (e.key === 'ArrowRight' && snake.dx === 0) { snake.dx = grid; snake.dy = 0; }
+                else if (e.key === 'ArrowDown' && snake.dy === 0) { snake.dy = grid; snake.dx = 0; }
+            });
+
+            requestAnimationFrame(loop);
+        }
+
+        /* Paint App Runtime */
+        let paintTool = 'pencil';
+        let isPainting = false;
+        let paintHistory = [];
+
+        function setPaintTool(tool) {
+            paintTool = tool;
+            document.querySelectorAll('.paint-tool-btn').forEach(b => b.classList.remove('bg-sky-600', 'text-white'));
+            const btn = document.getElementById(`tool-${tool}`);
+            if (btn) btn.classList.add('bg-sky-600', 'text-white');
+        }
+
+        function initPaintApp() {
+            const canvas = document.getElementById('paint-canvas');
+            if (!canvas) return;
+            canvas.width = 640;
+            canvas.height = 400;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            canvas.onmousedown = (e) => {
+                isPainting = true;
+                const rect = canvas.getBoundingClientRect();
+                ctx.beginPath();
+                ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+            };
+
+            canvas.onmousemove = (e) => {
+                if (!isPainting) return;
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                const color = document.getElementById('paint-color').value;
+                const size = document.getElementById('paint-size').value;
+
+                if (paintTool === 'pencil' || paintTool === 'brush') {
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = paintTool === 'pencil' ? 1 : size;
+                    ctx.lineCap = 'round';
+                    ctx.lineTo(x, y);
+                    ctx.stroke();
+                } else if (paintTool === 'eraser') {
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = size * 2;
+                    ctx.lineCap = 'round';
+                    ctx.lineTo(x, y);
+                    ctx.stroke();
+                }
+            };
+
+            canvas.onmouseup = () => { isPainting = false; };
+        }
+
+        function clearPaintCanvas() {
+            const canvas = document.getElementById('paint-canvas');
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function downloadPaintCanvas() {
+            const canvas = document.getElementById('paint-canvas');
+            const link = document.createElement('a');
+            link.download = 'mspaint-artwork.png';
+            link.href = canvas.toDataURL();
+            link.click();
+            showNotification('Saved', 'Artwork downloaded successfully');
+        }
+
+        /* Notification Toast System */
+        function showNotification(title, message) {
+            const area = document.getElementById('notification-area');
+            const toast = document.createElement('div');
+            toast.className = 'w-72 bg-slate-900/95 win-mica border border-white/10 p-4 rounded-2xl shadow-2xl text-white animate-window-open pointer-events-auto flex items-start space-x-3';
+            toast.innerHTML = `
+                <div class="w-8 h-8 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center shrink-0"><i class="fa-solid fa-bell"></i></div>
+                <div class="flex-1">
+                    <h4 class="font-bold text-xs">${title}</h4>
+                    <p class="text-[11px] text-slate-300 mt-0.5">${message}</p>
+                </div>
+            `;
+            area.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+    </script>
+</body>
+</html>
